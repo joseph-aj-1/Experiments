@@ -1,0 +1,16 @@
+{
+  "version": "9.0.0",
+  "css": ["css/mfgitem-viewer.css"],
+  "js": [
+    "js/core.js",
+    "js/ui.js",
+    "js/bom.js",
+    "js/mei.js",
+    "js/specs.js",
+    "js/libs.js",
+    "js/pdf-report.js",
+    "js/pdf-appendix.js",
+    "js/export.js",
+    "js/main.js"
+  ]
+}

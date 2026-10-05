@@ -1,0 +1,78 @@
+/* Mfg Item Viewer: everything is scoped under .mfv (the widget root) */
+html, body { height: 100%; margin: 0; overflow: hidden; }
+
+.mfv {
+  --fg: #1b2733; --muted: #5b6b7a; --line: #d8dee5; --soft: #f4f6f8; --accent: #005686; --err: #b3261e;
+  font: 13px/1.4 '3ds', Arial, Helvetica, sans-serif; color: var(--fg);
+  padding: 12px; box-sizing: border-box;
+  height: 100vh; overflow: auto; scrollbar-gutter: stable;
+  scrollbar-width: auto; scrollbar-color: #b8c3cd #f4f6f8;
+}
+.mfv * { box-sizing: border-box; }
+.mfv::-webkit-scrollbar { width: 12px; height: 12px; }
+.mfv::-webkit-scrollbar-thumb { background: #b8c3cd; border-radius: 6px; border: 3px solid #fff; }
+.mfv::-webkit-scrollbar-thumb:hover { background: #8d9aa6; }
+.mfv::-webkit-scrollbar-track, .mfv::-webkit-scrollbar-corner { background: #f4f6f8; }
+
+/* search bar */
+.mfv .bar { display: flex; gap: 6px; }
+.mfv .bar input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 3px; font: inherit; }
+.mfv .bar .go { flex: none; padding: 6px 14px; border: 0; border-radius: 3px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+.mfv .bar .pdf { flex: none; padding: 5px 12px; border: 1px solid var(--accent); border-radius: 3px; background: #fff; color: var(--accent); font: inherit; cursor: pointer; }
+.mfv .bar [aria-disabled=true] { opacity: .5; cursor: default; }
+.mfv .drop { margin-top: 8px; padding: 8px; border: 1px dashed #aab6c2; border-radius: 3px; color: var(--muted); text-align: center; }
+.mfv .drop.over { border-color: var(--accent); color: var(--accent); background: #eef5fa; }
+.mfv .ctx { margin-top: 4px; color: var(--muted); font-size: 11px; }
+.mfv .status { margin: 8px 0; color: var(--muted); min-height: 1.4em; }
+.mfv .status.error { color: var(--err); }
+
+/* generic */
+.mfv h3 { margin: 16px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.mfv table { width: 100%; border-collapse: collapse; }
+.mfv th, .mfv td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.mfv th { background: var(--soft); font-weight: 600; white-space: nowrap; }
+.mfv tr.pick { cursor: pointer; }
+.mfv tr.pick:hover td { background: #eef5fa; }
+.mfv .pill { display: inline-block; padding: 1px 7px; border-radius: 9px; background: var(--soft); border: 1px solid var(--line); font-size: 12px; font-weight: 400; }
+.mfv .empty { color: var(--muted); font-style: italic; }
+.mfv .note { color: var(--muted); font-style: italic; font-weight: 400; }
+.mfv .sub { color: var(--muted); font-size: 11px; margin: -2px 0 6px; }
+.mfv .sub.error { color: var(--err); }
+
+/* item details (collapsible) */
+.mfv .title { font-size: 16px; font-weight: 600; margin: 4px 0 8px; }
+.mfv .dtoggle { cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 4px 6px; margin-left: -6px; border-radius: 3px; }
+.mfv .dtoggle:hover { background: #eef5fa; }
+.mfv .dtoggle .tg { margin-left: auto; font-size: 12px; font-weight: 400; color: var(--accent); }
+.mfv .dbody { margin-bottom: 4px; }
+.mfv .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
+.mfv .kv dt { color: var(--muted); }
+.mfv .kv dd { margin: 0; word-break: break-all; }
+
+/* BOM table */
+.mfv .bomwrap { overflow: visible; }
+.mfv table.bom { min-width: 1120px; font-size: 12px; }
+.mfv table.bom th, .mfv table.bom td { padding: 5px 5px; }
+.mfv table.bom td.lvl { color: var(--muted); width: 3em; text-align: center; }
+.mfv table.bom td.tree { min-width: 12em; font-weight: 400; }
+.mfv table.bom tr.lvl1 td.tree { font-weight: 600; }
+.mfv table.bom tr.lvl0 td { background: var(--soft); font-weight: 600; }
+.mfv table.bom tr.lvl0 td.tree { font-weight: 700; }
+.mfv table.bom .none { color: var(--muted); }
+.mfv .elbow { color: #aab6c2; margin-right: 4px; font-family: monospace; }
+
+/* MEI columns */
+.mfv table.bom th.mh { background: #e9f1f7; }
+.mfv table.bom td.mei-cell { background: #f8fbfd; }
+.mfv table.bom tr.lvl0 td.mei-cell { background: #eef5fa; }
+
+/* Specification column */
+.mfv table.bom th.sh { background: #f3eee6; }
+.mfv table.bom td.spec-cell { min-width: 9em; }
+.mfv a.spec { color: var(--accent); text-decoration: none; white-space: nowrap; font-weight: 400; }
+.mfv a.spec:hover { text-decoration: underline; }
+.mfv a.spec.busy { opacity: .55; cursor: progress; }
+.mfv .ext { display: inline-block; font-size: 9px; line-height: 12px; padding: 0 3px; margin-right: 4px; border-radius: 2px; color: #fff; background: #6b7785; vertical-align: 1px; font-weight: 600; }
+.mfv .ext.pdf { background: #b3261e; }
+.mfv .ext.doc, .mfv .ext.docx { background: #2b579a; }
+.mfv .ext.xls, .mfv .ext.xlsx, .mfv .ext.xlsm, .mfv .ext.csv { background: #217346; }

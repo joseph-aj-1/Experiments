@@ -1,0 +1,5 @@
+# test output (python3 mfgitem-viewer/test/run_test.py)
+mfgitem-viewer/test/harness*.html
+mfgitem-viewer/test/out_*.pdf
+mfgitem-viewer/test/*.png
+mfgitem-viewer/test/__pycache__/

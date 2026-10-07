@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:widget="http://www.netvibes.com/ns/">
+<head>
+  <title>Route Viewer</title>
+  <meta name="author" content="Arun Joseph" />
+  <meta name="description" content="Route details: every task with its action, state, approval status, assignee, user group members and due date." />
+  <meta name="apiVersion" content="1.0" />
+  <meta name="debugMode" content="false" />
+  <meta name="strictMode" content="false" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <widget:preferences>
+  </widget:preferences>
+  <!--
+    Loader only. The application lives in the files listed in manifest.json
+    (css/, js/), served by GitHub Pages:
+      https://joseph-aj-1.github.io/Experiments/route-viewer/
+    Use this page either as the "Run Your App" URL or upload this file as-is.
+    Keep this script small and simple: the dashboard re-minifies inline scripts
+    in uploaded files (catch variables are given unique names for that reason).
+  -->
+  <script type="text/javascript">
+  //<![CDATA[
+  var RTV_BASE = "https://joseph-aj-1.github.io/Experiments/route-viewer/";
+
+  function rtvBoot(w) {
+    if (window.__rtvBooted) return;
+    window.__rtvBooted = true;
+    var root = w.body || document.body;
+    root.innerHTML = "";
+    var msg = document.createElement("div");
+    msg.style.cssText = "font:13px Arial,sans-serif;color:#5b6b7a;padding:12px";
+    msg.textContent = "Loading Route Viewer…";
+    root.appendChild(msg);
+    function fail(text) { msg.style.color = "#b3261e"; msg.textContent = text; }
+
+    // App scripts are plain files (no AMD); they load in manifest order.
+    function loadScript(url) {
+      return new Promise(function (resolve, reject) {
+        var s = document.createElement("script");
+        s.src = url; s.async = false;
+        s.onload = function () { resolve(); };
+        s.onerror = function () { reject(new Error("Could not load " + url)); };
+        (document.head || document.documentElement).appendChild(s);
+      });
+    }
+    function loadCss(url) {
+      var l = document.createElement("link");
+      l.rel = "stylesheet"; l.type = "text/css"; l.href = url;
+      (document.head || document.documentElement).appendChild(l);
+    }
+    // manifest.json is never cached, so a push to GitHub shows up on the next widget refresh
+    fetch(RTV_BASE + "manifest.json?t=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error("manifest.json: HTTP " + r.status); return r.json(); })
+      .then(function (m) {
+        var q = "?v=" + encodeURIComponent(m.version);
+        (m.css || []).forEach(function (f) { loadCss(RTV_BASE + f + q); });
+        return (m.js || []).reduce(function (p, f) {
+          return p.then(function () { return loadScript(RTV_BASE + f + q); });
+        }, Promise.resolve()).then(function () { return m; });
+      })
+      .then(function (m) {
+        if (!window.RTV || !window.RTV.start) throw new Error("The application scripts did not initialise.");
+        window.RTV.start(w, { base: RTV_BASE, version: m.version });
+      })
+      .catch(function (cx1) {
+        fail("Could not start Route Viewer from " + RTV_BASE + " (" + cx1.message + "). Check that GitHub Pages is enabled for joseph-aj-1/Experiments.");
+      });
+  }
+
+  // Start once the dashboard has created the widget object (the trailing script below
+  // usually does this; this is the backup when a loader drops it).
+  (function waitForWidget(n) {
+    if (window.__rtvBooted) return;
+    if (typeof widget !== "undefined" && widget && (widget.body || document.body)) return rtvBoot(widget);
+    if (n < 300) setTimeout(function () { waitForWidget(n + 1); }, 100);
+  })(0);
+  //]]>
+  </script>
+</head>
+<body>
+</body>
+<script type="text/javascript">
+  //<![CDATA[
+  (function widgetLoading() {
+    if (typeof widget !== "undefined" && widget) { rtvBoot(widget); }
+    else { setTimeout(widgetLoading, 100); }
+  })();
+  //]]>
+</script>
+</html>

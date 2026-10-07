@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "css": ["css/route-viewer.css"],
+  "js": [
+    "js/core.js",
+    "js/ui.js",
+    "js/groups.js",
+    "js/route.js",
+    "js/main.js"
+  ]
+}

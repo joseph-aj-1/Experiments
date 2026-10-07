@@ -1,0 +1,78 @@
+/* Route Viewer: everything is scoped under .rtv (the widget root) */
+html, body { height: 100%; margin: 0; overflow: hidden; }
+
+.rtv {
+  --fg: #1b2733; --muted: #6e7882; --line: #d8dee5; --soft: #f4f6f8; --accent: #005686; --link: #368ec4; --err: #b3261e;
+  font: 13px/1.4 '3ds', Arial, Helvetica, sans-serif; color: var(--fg);
+  padding: 12px; box-sizing: border-box;
+  height: 100vh; overflow: auto; scrollbar-gutter: stable;
+  scrollbar-width: auto; scrollbar-color: #b8c3cd #f4f6f8;
+}
+.rtv * { box-sizing: border-box; }
+.rtv::-webkit-scrollbar { width: 12px; height: 12px; }
+.rtv::-webkit-scrollbar-thumb { background: #b8c3cd; border-radius: 6px; border: 3px solid #fff; }
+.rtv::-webkit-scrollbar-track, .rtv::-webkit-scrollbar-corner { background: #f4f6f8; }
+
+/* search bar */
+.rtv .bar { display: flex; gap: 6px; }
+.rtv .bar input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 3px; font: inherit; }
+.rtv .bar .go { flex: none; padding: 6px 14px; border-radius: 3px; background: var(--accent); color: #fff; cursor: pointer; }
+.rtv .bar .ghost { flex: none; padding: 5px 12px; border: 1px solid var(--accent); border-radius: 3px; background: #fff; color: var(--accent); cursor: pointer; }
+.rtv .bar [aria-disabled=true] { opacity: .5; cursor: default; }
+.rtv .drop { margin-top: 8px; padding: 8px; border: 1px dashed #aab6c2; border-radius: 3px; color: var(--muted); text-align: center; }
+.rtv .drop.over { border-color: var(--accent); color: var(--accent); background: #eef5fa; }
+.rtv .ctx { margin-top: 4px; color: var(--muted); font-size: 11px; }
+.rtv .status { margin: 8px 0; color: var(--muted); min-height: 1.4em; }
+.rtv .status.error { color: var(--err); }
+
+/* generic */
+.rtv h3 { margin: 16px 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.rtv .sub { color: var(--muted); font-size: 11px; margin: 0 0 6px; }
+.rtv .sub.error, .rtv .err { color: var(--err); }
+.rtv .muted { color: var(--muted); }
+.rtv .empty { color: var(--muted); font-style: italic; }
+.rtv table { width: 100%; border-collapse: collapse; }
+.rtv th, .rtv td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.rtv th { background: var(--soft); font-weight: 400; color: #555; white-space: nowrap; border-right: 1px solid #e3e7eb; }
+.rtv tr.pick { cursor: pointer; }
+.rtv tr.pick:hover td { background: #eef5fa; }
+.rtv table.list td.desc { color: var(--muted); }
+
+/* route header */
+.rtv .head { display: flex; gap: 14px; align-items: flex-start; margin-top: 6px; }
+.rtv .rico { flex: none; width: 54px; height: 54px; border-radius: 6px; background: #0c6aa6 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.8'%3E%3Ccircle cx='5' cy='6' r='2.2'/%3E%3Ccircle cx='19' cy='12' r='2.2'/%3E%3Ccircle cx='5' cy='18' r='2.2'/%3E%3Cpath d='M7.2 6h5a4 4 0 0 1 4 4v0M7.2 18h5a4 4 0 0 0 4-4'/%3E%3C/svg%3E") center/32px no-repeat; }
+.rtv .hmain { flex: 1; min-width: 0; }
+.rtv .title { font-size: 19px; color: #3d3d3d; margin: 0 0 2px; }
+.rtv .rdesc { color: var(--muted); margin-bottom: 6px; }
+.rtv .facts { display: grid; grid-template-columns: repeat(3, max-content 1fr); gap: 2px 10px; margin: 0; font-size: 12px; }
+.rtv .facts dt { color: #555; }
+.rtv .facts dt::after { content: " :"; }
+.rtv .facts dd { margin: 0; color: var(--link); }
+
+/* badges */
+.rtv .badge { display: inline-block; padding: 0 6px; border-radius: 2px; font-size: 11px; line-height: 17px; color: #fff; vertical-align: 2px; background: #8a96a3; }
+.rtv .rs-process { background: #368ec4; } .rtv .rs-define { background: #8a96a3; } .rtv .rs-done { background: #57b847; } .rtv .rs-draft { background: #77797c; }
+.rtv .ts-todo { background: #f39c34; } .rtv .ts-review { background: #368ec4; } .rtv .ts-done { background: #57b847; } .rtv .ts-draft { background: #7d2d84; }
+
+/* task table */
+.rtv .tblwrap { overflow: visible; }
+.rtv table.tasks { min-width: 1180px; font-size: 12px; }
+.rtv table.tasks td.ord { width: 3em; color: #555; }
+.rtv table.tasks td.ttl { min-width: 13em; }
+.rtv table.tasks td.ttl .sub { margin: 2px 0 0 22px; }
+.rtv table.tasks th.mh { background: #fdf3e6; }
+.rtv table.tasks td.mem { background: #fffaf3; min-width: 15em; }
+.rtv table.tasks td.mem .cnt { color: var(--muted); font-size: 11px; }
+.rtv table.tasks td.mem a { color: var(--fg); text-decoration: none; }
+.rtv table.tasks td.mem a:hover { color: var(--link); text-decoration: underline; }
+.rtv table.tasks td.ap.ok { color: #2e7d32; } .rtv table.tasks td.ap.bad { color: var(--err); } .rtv table.tasks td.ap.muted { color: var(--muted); }
+.rtv table.tasks td.cmt { max-width: 18em; overflow-wrap: anywhere; color: #555; }
+.rtv .link { color: var(--link); }
+.rtv .ico { display: inline-block; width: 16px; height: 16px; margin-right: 6px; vertical-align: -3px; background: center/contain no-repeat; }
+.rtv .ico.grp { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23368ec4'%3E%3Ccircle cx='8' cy='6' r='3'/%3E%3Ccircle cx='16' cy='6' r='3'/%3E%3Cpath d='M2 20v-5a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v5zM14.5 20v-5a5 5 0 0 0-1.4-3.5H18a4 4 0 0 1 4 4V20z'/%3E%3C/svg%3E"); }
+.rtv .ico.usr { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23368ec4'%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3Cpath d='M4 21v-3a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v3z'/%3E%3C/svg%3E"); }
+.rtv .ico.task { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23005686' stroke-width='1.8'%3E%3Crect x='5' y='3' width='14' height='18' rx='2'/%3E%3Cpath d='M8.5 12l2.5 2.5 4.5-5'/%3E%3C/svg%3E"); }
+.rtv .clock { color: #f39c34; margin-right: 5px; }
+.rtv .clock.late { color: var(--err); }
+.rtv .prio { display: inline-block; width: 11px; height: 11px; margin-right: 6px; border-radius: 2px; vertical-align: -1px; background: #f39c34; }
+.rtv .prio.p-high { background: #d64545; } .rtv .prio.p-low { background: #57b847; }

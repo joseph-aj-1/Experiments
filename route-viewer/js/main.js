@@ -23,6 +23,7 @@
       function (WAFData, Compass, DnD) {
         M.WAFData = WAFData;
         wireEvents(ui);
+        M.initFilters(ui);
         enableDrop(ui, DnD);
         startup(Compass, startupTimer);
       },

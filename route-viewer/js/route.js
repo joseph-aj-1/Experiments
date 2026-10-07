@@ -125,11 +125,16 @@
       "<h3>Tasks — " + tasks.length + " task" + (tasks.length === 1 ? "" : "s") +
         (groups.length ? ", " + groups.length + " assigned to " + (groups.length === 1 ? "a user group" : "user groups") : "") + "</h3>" +
       "<div class='sub memsum'>" + (groups.length ? "Looking up user group members…" : "No task is assigned to a user group.") + "</div>" +
+      "<div class='sub fsum' style='display:none'></div>" +
       (tasks.length ?
         "<div class='tblwrap'><table class='tasks'><thead><tr><th>Order</th><th>Title</th><th>Expected Action</th><th>Maturity State</th>" +
-        "<th>Approval Status</th><th>Assignee</th><th class='mh'>User Group Members</th><th>Due Date</th><th>Priority</th>" +
+        "<th>Approval Status</th><th class='fcol' data-col='asg'>Assignee" + M.filterHeader("asg") + "</th>" +
+        "<th class='mh fcol' data-col='mem'>User Group Members" + M.filterHeader("mem") + "</th><th>Due Date</th><th>Priority</th>" +
         "<th>Completed</th><th>Comments</th></tr></thead><tbody>" + rows + "</tbody></table></div>"
         : "<p class='empty'>This route has no tasks.</p>");
+    if (M.closeFilterPopups) M.closeFilterPopups();
+    M.filtersForRoute(r.id);
+    M.applyFilters();
     if (M.w.setTitle) M.w.setTitle("Route: " + (r.title || r.name));
   }
 
@@ -144,6 +149,7 @@
       tasks.forEach(function (t, k) {
         if (!M.isGroupTask(t)) return;
         var res = byUri[M.groupUri(t)] || { members: [], error: "no group id" };
+        t._mem = res;
         var cell = M.ui.route.querySelector("tr[data-k='" + k + "'] td.mem");
         if (!cell) return;
         if (res.error) { failed++; badGroups[M.groupUri(t)] = true; cell.innerHTML = "<span class='err' title='" + esc(res.error) + "'>Could not read members: " + esc(res.error) + "</span>"; return; }
@@ -153,6 +159,7 @@
             res.members.map(function (m) { return "<div class='person'><a href='mailto:" + esc(m) + "'>" + esc(m) + "</a></div>"; }).join("")
           : "<span class='muted'>No members</span>";
       });
+      M.applyFilters();
       var sum = M.ui.route.querySelector(".memsum");
       if (sum) {
         sum.textContent = uris.length + " user group" + (uris.length === 1 ? "" : "s") + ", " + Object.keys(all).length + " distinct member" +

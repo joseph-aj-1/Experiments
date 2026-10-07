@@ -104,8 +104,9 @@
       var st = TASK_STATE[t.current] || [t.current || "", "other"], ap = approval(t);
       return "<tr data-k='" + k + "'>" +
         "<td class='ord'>" + esc(t.taskOrder) + "</td>" +
-        "<td class='ttl'><span class='ico task'></span><span title='" + esc(t.instructions || "") + "'>" + esc(t.title) + "</span>" +
+        "<td class='ttl'><span class='ico task'></span><span>" + esc(t.title) + "</span>" +
           (t.name ? "<div class='sub'>" + esc(t.name) + "</div>" : "") + "</td>" +
+        "<td class='ins'>" + (String(t.instructions || "").trim() ? esc(String(t.instructions).trim()) : "<span class='muted'>—</span>") + "</td>" +
         "<td>" + esc(t.taskAction) + "</td>" +
         "<td><span class='badge ts-" + st[1] + "'>" + esc(st[0]) + "</span></td>" +
         "<td class='ap " + ap[1] + "'>" + esc(ap[0]) + "</td>" +
@@ -127,7 +128,7 @@
       "<div class='sub memsum'>" + (groups.length ? "Looking up user group members…" : "No task is assigned to a user group.") + "</div>" +
       "<div class='sub fsum' style='display:none'></div>" +
       (tasks.length ?
-        "<div class='tblwrap'><table class='tasks'><thead><tr><th>Order</th><th>Title</th><th>Expected Action</th><th>Maturity State</th>" +
+        "<div class='tblwrap'><table class='tasks'><thead><tr><th>Order</th><th>Title</th><th>Instructions</th><th>Expected Action</th><th>Maturity State</th>" +
         "<th>Approval Status</th><th class='fcol' data-col='asg'>Assignee" + M.filterHeader("asg") + "</th>" +
         "<th class='mh fcol' data-col='mem'>User Group Members" + M.filterHeader("mem") + "</th><th>Due Date</th><th>Priority</th>" +
         "<th>Completed</th><th>Comments</th></tr></thead><tbody>" + rows + "</tbody></table></div>"

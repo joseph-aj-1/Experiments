@@ -32,7 +32,7 @@
       { id: "T1", title: "<img src=x onerror=window.__xss=1>", name: "IT-1", taskOrder: "1", current: "Complete", approvalStatus: "Reject", taskAction: "Approve",
         assigneeType: "Person", taskAssignee: "Arun JOSEPH", taskAssigneeUsername: "hjh", routeTaskPriority: "Low", taskDueDate: "2026-10-01T10:00:00.000Z",
         taskActualCompletionDate: "10/2/2026 9:00:00 AM", comments: "Not ok" },
-      { id: "T2", title: "Review", name: "IT-2", taskOrder: "2", current: "Assigned", approvalStatus: "None", taskAction: "Comment", assigneeType: "Group Proxy",
+      { id: "T2", title: "Review", name: "IT-2", instructions: "Check every drawing against the change request.\nThen confirm the BOM, the manufacturing items and their specifications. Reference: https://example.com/a/very/long/link/without/any/spaces/that/must/still/wrap/inside/the/cell", taskOrder: "2", current: "Assigned", approvalStatus: "None", taskAction: "Comment", assigneeType: "Group Proxy",
         assigneeTitle: "Experimental Group", taskAssignee: "e6cd813b-c67d-42d9-8eac-232c23f4e6cc", routeTaskPriority: "Medium", taskDueDate: "2099-01-01T10:00:00.000Z" },
       { id: "T2b", title: "Review again", name: "IT-2b", taskOrder: "2", current: "Assigned", approvalStatus: "None", taskAction: "Approve", assigneeType: "Group Proxy",
         assigneeTitle: "Experimental Group", taskAssignee: "e6cd813b-c67d-42d9-8eac-232c23f4e6cc", routeTaskPriority: "Medium", assigneeSetDueDate: "Yes" }

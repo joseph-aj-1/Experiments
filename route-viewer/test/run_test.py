@@ -48,19 +48,20 @@ with sync_playwright() as p:
     check(all(s in facts for s in ["Started", "Awaiting Approval", "Approval", "Promote Connected Object", "Immediate", "Organization", "Arun JOSEPH (hjh)"]), "route facts shown")
     check("CA-OI000629352-00000002" in pg.inner_text(".rdesc"), "route description shown")
     heads = pg.evaluate("Array.from(document.querySelectorAll('table.tasks thead th')).map(function(h){return h.textContent})")
-    check(heads == ["Order", "Title", "Expected Action", "Maturity State", "Approval Status", "Assignee", "User Group Members", "Due Date", "Priority", "Completed", "Comments"], "task table columns")
+    check(heads == ["Order", "Title", "Instructions", "Expected Action", "Maturity State", "Approval Status", "Assignee", "User Group Members", "Due Date", "Priority", "Completed", "Comments"], "task table columns")
     cells = pg.evaluate("Array.from(document.querySelectorAll('table.tasks tbody tr')[0].cells).map(function(c){return c.innerText.trim()})")
-    check(cells[1].startswith("Approve") and "IT-OI000629352-0000101" in cells[1] and cells[2] == "Approve" and cells[3] == "To Do" and cells[4] == "Awaiting Approval",
-          "task row: title, task name, action, To Do, Awaiting Approval (%s)" % cells[:5])
-    check(cells[5] == "Experimental Group" and pg.locator("table.tasks td.asg .ico.grp").count() == 1, "assignee is the group, with group icon")
-    check(cells[6] == "1 member\narun.joseph@3ds.com" and pg.get_attribute("td.mem a", "href") == "mailto:arun.joseph@3ds.com", "User Group Members lists the group's members (mailto)")
-    check("Medium" in cells[8] and cells[9] == "", "priority / completed")
+    check(cells[1].startswith("Approve") and "IT-OI000629352-0000101" in cells[1] and cells[2] == "Approve the Task" and cells[3] == "Approve" and cells[4] == "To Do" and cells[5] == "Awaiting Approval",
+          "task row: title, task name, instructions, action, To Do, Awaiting Approval (%s)" % cells[:6])
+    check(cells[6] == "Experimental Group" and pg.locator("table.tasks td.asg .ico.grp").count() == 1, "assignee is the group, with group icon")
+    check(cells[7] == "1 member\narun.joseph@3ds.com" and pg.get_attribute("td.mem a", "href") == "mailto:arun.joseph@3ds.com", "User Group Members lists the group's members (mailto)")
+    check("Medium" in cells[9] and cells[10] == "", "priority / completed")
     check("1 user group, 1 distinct member" in pg.inner_text(".memsum"), "member summary")
     ug = pg.evaluate("window.__ugCalls")
     check(len(ug) == 1 and ug[0]["method"] == "POST" and "/3drdfpersist/resources/v1/usersgroup/groups?select=members" in ug[0]["path"]
           and json.loads(ug[0]["body"]) == {"groups": [{"uri": "uuid:e6cd813b-c67d-42d9-8eac-232c23f4e6cc"}]} and ug[0]["ctx"] is None,
           "one UsersGroup POST /groups with the uuid: URI and no SecurityContext")
-    check(pg.get_attribute("td.ttl span[title]", "title") == "Approve the Task", "instructions as title tooltip")
+    ws = pg.evaluate("(function(c){var s=getComputedStyle(c);return [s.whiteSpace, s.overflowWrap, s.maxWidth]})(document.querySelector('td.ins'))")
+    check(ws[0] == "pre-line" and ws[1] == "anywhere" and ws[2] != "none", "instructions column wraps (%s)" % ws)
     check(pg.evaluate("window.__title") == "Route: R-OI000629352-0000101", "widget title set")
     pg.screenshot(path="shot_r101.png", full_page=True)
     # 2) refresh picks up changed members (cache cleared)
@@ -74,7 +75,8 @@ with sync_playwright() as p:
     pg.fill(".rtv input", "R-OI000629352-0000100"); pg.click(".go")
     pg.wait_for_function("document.querySelector('.title') && document.querySelector('.title').textContent.indexOf('0000100') >= 0"); pg.wait_for_timeout(200)
     c2 = pg.evaluate("Array.from(document.querySelectorAll('table.tasks tbody tr')[0].cells).map(function(c){return c.innerText.trim()})")
-    check(c2[3] == "Complete" and c2[4] == "Approved" and c2[5] == "Arun JOSEPH (hjh)" and c2[6] == "—" and c2[10] == "aaa" and "2026" in c2[9],
+    check(c2[4] == "Complete" and c2[5] == "Approved" and c2[6] == "Arun JOSEPH (hjh)" and c2[7] == "—" and c2[11] == "aaa" and "2026" in c2[10]
+          and c2[2].startswith("Review changes done under Change Action"),
           "person task: Complete / Approved / person / no members / comments / completion date (%s)" % c2)
     check(pg.inner_text(".memsum") == "No task is assigned to a user group." and len(pg.evaluate("window.__ugCalls")) == 3, "no UsersGroup call for person-only route")
     check(pg.locator(".clock.late").count() == 0, "completed task is never shown as late")
@@ -88,14 +90,17 @@ with sync_playwright() as p:
     rows = pg.evaluate("Array.from(document.querySelectorAll('table.tasks tbody tr')).map(function(r){return Array.from(r.cells).map(function(c){return c.innerText.trim()})})")
     check([r_[0] for r_ in rows] == ["1", "2", "2", "3"] and rows[1][1].startswith("Review\n") and rows[2][1].startswith("Review again"), "tasks sorted by order, then title")
     check(pg.evaluate("window.__xss") is None and "<img" in rows[0][1], "HTML in task titles is escaped")
-    check(rows[0][4] == "Rejected" and rows[0][3] == "Complete" and rows[3][3] == "Draft" and rows[3][4] == "To be approved" and rows[1][4] == "In progress",
+    check(rows[0][5] == "Rejected" and rows[0][4] == "Complete" and rows[3][4] == "Draft" and rows[3][5] == "To be approved" and rows[1][5] == "In progress",
           "approval labels: Rejected / To be approved / In progress")
-    check("arun.joseph@3ds.com" in rows[1][6] and "arun.joseph@3ds.com" in rows[2][6] and "Could not read members" in rows[3][6], "unreadable group shows an error in its cell")
+    check("arun.joseph@3ds.com" in rows[1][7] and "arun.joseph@3ds.com" in rows[2][7] and "Could not read members" in rows[3][7], "unreadable group shows an error in its cell")
     check("2 user groups, 2 distinct members (1 task could not be resolved)" in pg.inner_text(".memsum"), "summary counts groups, members and failures")
     ug = pg.evaluate("window.__ugCalls")
     check(json.loads(ug[-1]["body"])["groups"] == [{"uri": "uuid:00000000-dead-beef-0000-000000000000"}], "already-known group comes from the cache; only the new group is fetched")
-    check(rows[2][7] == "Assignee-Set Due Date" and pg.locator(".clock.late").count() == 0 and pg.locator(".clock").count() == 2, "due-date variants")
+    check(rows[2][8] == "Assignee-Set Due Date" and pg.locator(".clock.late").count() == 0 and pg.locator(".clock").count() == 2, "due-date variants")
     check("4 tasks, 3 assigned to user groups" in pg.inner_text("h3").lower(), "heading counts tasks and group tasks")
+    insw = pg.evaluate("(function(){var c=document.querySelectorAll('table.tasks tbody tr')[1].querySelector('td.ins');return [c.innerText.split('\\n').length, c.getBoundingClientRect().width, c.scrollWidth <= c.clientWidth]})()")
+    check(insw[0] >= 2 and insw[1] <= 24 * 12 + 20 and insw[2], "long instructions wrap inside the column, keep line breaks, no overflow (%s)" % insw)
+    check(rows[0][2] == "\u2014", "task without instructions shows a dash")
     pg.screenshot(path="shot_multi.png", full_page=True)
     # 5b) column filters (Assignee, User Group Members)
     def select_none():

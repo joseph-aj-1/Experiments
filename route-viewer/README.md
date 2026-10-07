@@ -1,6 +1,6 @@
 # Route Viewer (3DDashboard widget)
 
-Shows a Route and **all of its tasks**: order, title / task name, expected action, maturity state,
+Shows a Route and **all of its tasks**: order, title / task name, instructions (wrapped), expected action, maturity state,
 approval status, assignee, **User Group Members** (for tasks assigned to a user group), due date,
 priority, completion date and comments.
 

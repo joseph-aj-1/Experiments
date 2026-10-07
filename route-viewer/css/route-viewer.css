@@ -56,7 +56,9 @@ html, body { height: 100%; margin: 0; overflow: hidden; }
 
 /* task table */
 .rtv .tblwrap { overflow: visible; }
-.rtv table.tasks { min-width: 1180px; font-size: 12px; }
+.rtv table.tasks { min-width: 1380px; font-size: 12px; }
+/* instructions: wrap long text (and keep the author's line breaks) */
+.rtv table.tasks td.ins { min-width: 14em; max-width: 24em; white-space: pre-line; overflow-wrap: anywhere; word-break: normal; color: #3d3d3d; }
 .rtv table.tasks td.ord { width: 3em; color: #555; }
 .rtv table.tasks td.ttl { min-width: 13em; }
 .rtv table.tasks td.ttl .sub { margin: 2px 0 0 22px; }

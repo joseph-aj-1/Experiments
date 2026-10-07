@@ -76,3 +76,39 @@ html, body { height: 100%; margin: 0; overflow: hidden; }
 .rtv .clock.late { color: var(--err); }
 .rtv .prio { display: inline-block; width: 11px; height: 11px; margin-right: 6px; border-radius: 2px; vertical-align: -1px; background: #f39c34; }
 .rtv .prio.p-high { background: #d64545; } .rtv .prio.p-low { background: #57b847; }
+
+/* column filters (Assignee, User Group Members) */
+.rtv table.tasks th.fcol { position: relative; padding-right: 28px; }
+.rtv .fbtn { position: absolute; right: 6px; top: 50%; margin-top: -8px; width: 16px; height: 16px; border-radius: 2px; cursor: pointer; opacity: .55;
+  background: center/14px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M3 4h18l-7 8.5V19l-4 2v-8.5z'/%3E%3C/svg%3E"); }
+.rtv th.fcol:hover .fbtn, .rtv .fbtn:focus { opacity: 1; outline: none; background-color: #e3e9ee; }
+.rtv th.filtered .fbtn { opacity: 1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23368ec4' stroke='%23368ec4' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M3 4h18l-7 8.5V19l-4 2v-8.5z'/%3E%3C/svg%3E"); }
+.rtv th.filtered { color: var(--accent); }
+.rtv .fsum { color: var(--accent); }
+
+.rtv .fpop { position: absolute; z-index: 20; width: 280px; padding: 10px; background: #fff; border: 1px solid #c9d1d9; border-radius: 3px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.18); font-size: 12px; }
+.rtv .fpop .frefine { width: 100%; padding: 5px 7px; border: 1px solid var(--link); border-radius: 3px; font: inherit; outline: none; }
+.rtv .fpop .fhead { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 5px 6px; border: 1px solid var(--line); border-bottom: 0; background: var(--soft); }
+.rtv .fpop .fvh { flex: 1; color: #555; }
+.rtv .fpop .fsort { width: 16px; height: 16px; cursor: pointer; background: center/14px no-repeat; }
+.rtv .fpop .fsort.asc { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='2'%3E%3Cpath d='M17 4v16M13 16l4 4 4-4'/%3E%3Ctext x='1' y='10' font-size='9' font-family='Arial' fill='%23555' stroke='none'%3EA%3C/text%3E%3Ctext x='1' y='21' font-size='9' font-family='Arial' fill='%23555' stroke='none'%3EZ%3C/text%3E%3C/svg%3E"); }
+.rtv .fpop .fsort.desc { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='2'%3E%3Cpath d='M17 4v16M13 16l4 4 4-4'/%3E%3Ctext x='1' y='10' font-size='9' font-family='Arial' fill='%23555' stroke='none'%3EZ%3C/text%3E%3Ctext x='1' y='21' font-size='9' font-family='Arial' fill='%23555' stroke='none'%3EA%3C/text%3E%3C/svg%3E"); }
+.rtv .fpop .flist { height: 150px; overflow-y: auto; border: 1px solid var(--line); }
+.rtv .fpop .fval { display: flex; align-items: center; gap: 8px; padding: 4px 6px; cursor: pointer; overflow-wrap: anywhere; }
+.rtv .fpop .fval.on { background: #d5e8f2; }
+.rtv .fpop .fval:hover { background: #e6f1f7; }
+.rtv .fpop .fnone { padding: 6px; color: var(--muted); font-style: italic; }
+.rtv .fpop .fcount { margin: 8px 0 10px; color: #555; }
+.rtv .fpop .ffoot { display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.rtv .fpop .freset { flex: 1; color: var(--link); cursor: pointer; }
+.rtv .fpop .fok { padding: 5px 18px; border-radius: 3px; background: #42a2da; color: #fff; cursor: pointer; }
+.rtv .fpop .fok[aria-disabled=true] { opacity: .45; cursor: default; }
+.rtv .fpop .fcancel { padding: 4px 14px; border: 1px solid #aab6c2; border-radius: 3px; color: var(--fg); cursor: pointer; }
+
+.rtv .fmenu { position: absolute; z-index: 21; min-width: 170px; padding: 4px 0; background: #fff; border: 1px solid #c9d1d9; box-shadow: 0 4px 14px rgba(0,0,0,.18); font-size: 12px; }
+.rtv .fmenu .fmi { padding: 6px 12px 6px 32px; cursor: pointer; background: 10px center/14px no-repeat; }
+.rtv .fmenu .fmi:hover { background-color: #e6f1f7; }
+.rtv .fmenu .fmi[aria-disabled=true] { color: #aab; cursor: default; background-color: transparent; }
+.rtv .fmenu .fmi-filter { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M3 4h18l-7 8.5V19l-4 2v-8.5z'/%3E%3C/svg%3E"); }

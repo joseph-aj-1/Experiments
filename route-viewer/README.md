@@ -18,6 +18,10 @@ GitHub Pages must be enabled for `joseph-aj-1/Experiments` (Settings → Pages �
   `CA-OI000629352-00000002`) and press **Search** / Enter. One match opens directly; several give a pick list.
   A 32-character physical ID opens that route directly.
 * Or drop a **Route** (opens it) or another object, e.g. a **Change Action** (searches routes that mention it).
+* **Filter** the Assignee and User Group Members columns: click the funnel in the header (or right-click
+  the header → Filter Column / Clear Filter / Clear All Filters). Pick values (with task counts), refine by
+  typing, sort, then OK. A task matches the member filter when any of its group members is selected;
+  filters on both columns combine. Filters stay on Refresh and reset when another route is opened.
 * **Refresh** (or the dashboard's refresh) reloads the route and re-reads group members.
 * The security context comes from your preferred credentials; change it in the widget preferences.
 
@@ -38,7 +42,7 @@ The `usersgroup` URL comes from the service registry (fallback: `-space.` → `-
 ## Files
 
 `index.html` (loader) · `manifest.json` · `css/route-viewer.css` · `js/core.js` (helpers, requests, context) ·
-`js/ui.js` · `js/groups.js` (UsersGroup) · `js/route.js` (search, header, task table) · `js/main.js` (startup, events, drop)
+`js/ui.js` · `js/groups.js` (UsersGroup) · `js/filters.js` (column filters) · `js/route.js` (search, header, task table) · `js/main.js` (startup, events, drop)
 
 ## Test
 

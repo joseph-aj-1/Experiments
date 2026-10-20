@@ -9,7 +9,7 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY server.py ./
+COPY server.py mcp_schema_sanitizer.py ./
 COPY app ./app
 COPY config ./config
 COPY specs ./specs

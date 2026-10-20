@@ -40,8 +40,21 @@ if __name__ == "__main__":
                 args.host,
             )
         mcp = build_app(auth=auth)
+        from starlette.middleware import Middleware
+
+        from app.http_sanitizer import SanitizerMiddleware
+
         # Stateless so any Cloud Run instance / cold start can serve any request.
-        mcp.run(transport="streamable-http", host=args.host, port=args.port, stateless_http=True)
+        # json_response + SanitizerMiddleware give remote clients the same
+        # API-safe tool schemas that mcp_schema_sanitizer.py gives Claude Desktop.
+        mcp.run(
+            transport="streamable-http",
+            host=args.host,
+            port=args.port,
+            stateless_http=True,
+            json_response=True,
+            middleware=[Middleware(SanitizerMiddleware, mcp=mcp, path="/mcp")],
+        )
     else:
         mcp = build_app()
         mcp.run()

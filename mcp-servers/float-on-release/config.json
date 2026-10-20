@@ -1,0 +1,18 @@
+{
+  "tdx_server_dir": "../tdx-mcp-server",
+  "security_context": "VPLMProjectAdministrator.Company Name.Common Space",
+  "events_dir": "../eif-listener/events",
+  "dry_run": false,
+  "released_state": "RELEASED",
+  "editable_parent_states": [
+    "PRIVATE",
+    "IN_WORK",
+    "FROZEN",
+    "RELEASED"
+  ],
+  "event_class": "Manufacturing Item",
+  "status_event_types": [],
+  "poll_seconds": 5,
+  "process_existing_events": false,
+  "change_action_id": ""
+}

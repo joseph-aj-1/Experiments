@@ -1,0 +1,5 @@
+# Pinned: header forwarding and OAuth behaviour were checked against this version.
+fastmcp==4.0.10
+httpx>=0.27.0
+python-dotenv>=1.0.1
+PyYAML>=6.0.1

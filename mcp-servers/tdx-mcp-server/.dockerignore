@@ -1,0 +1,16 @@
+# Secrets never go into the image: Cloud Run injects them at runtime.
+.env
+.env.*
+*.log
+.venv/
+__pycache__/
+**/__pycache__/
+.vscode/
+.git/
+schema_dump/
+widget/
+Experiments-repo/
+Experiments-repo.zip
+Claude outputs/
+*.pdf
+*.xlsx

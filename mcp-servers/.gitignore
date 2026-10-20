@@ -1,0 +1,29 @@
+# Secrets: never committed
+.env
+.env.*
+!.env.example
+agent.secret
+*.secret
+
+# Environments, builds, caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+bin/
+obj/
+plugin/build/
+*.jar
+*.class
+
+# Runtime output and tenant data
+*.log
+logs/
+runs/
+events/
+schema_dump/
+Claude outputs/
+
+# Generated docs and archives
+README.pdf
+*.zip

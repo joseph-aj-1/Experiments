@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug 3DEXPERIENCE MCP (HTTP)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "server",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "args": [
+        "--http",
+        "--port",
+        "8000"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Attach to Debugpy (Stdio / TCP)",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": {
+        "host": "127.0.0.1",
+        "port": 5678
+      },
+      "justMyCode": true
+    }
+  ]
+}

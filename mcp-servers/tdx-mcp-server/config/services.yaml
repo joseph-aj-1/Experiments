@@ -1,0 +1,163 @@
+# ---------------------------------------------------------------------------
+# Service registry: one entry per OpenAPI spec file dropped into /specs.
+#
+# HOW TO ADD A NEW WEBSERVICE:
+#   1. Drop the OpenAPI JSON/YAML file into /specs
+#   2. Add an entry below pointing "file:" at it
+#   3. Restart the server (or call POST /admin/reload if running the
+#      hot-reload variant -- see README)
+#
+# HOW TO REMOVE ONE:
+#   - Set enabled: false (keeps the file for later), or delete the entry
+#     and the file entirely.
+#
+# HOW TO TRIM WHAT A SINGLE SPEC EXPOSES:
+#   - exclude_tags / exclude_operation_ids / exclude_paths let you hide
+#     noisy or dangerous endpoints (e.g. bulk deletes) without touching
+#     the spec file itself.
+# ---------------------------------------------------------------------------
+
+services:
+  - name: manufacturing
+    file: Manufacturing.json
+    enabled: true
+    # Tool names are namespaced as "<prefix>_<operation>" to avoid collisions
+    # once more specs are added (e.g. manufacturing_search_dsmfg_mfgitem)
+    prefix: mfg
+    # Which "servers" entry (by variable name) in the spec to call.
+    # Falls back to TDX_SERVER_PREFERENCE from .env if omitted.
+    server_preference: APIGateway
+    exclude_tags: []
+    exclude_operation_ids: []
+    exclude_paths: []
+    # Short, unambiguous tool names (operationId -> name). Without these,
+    # long operationIds are cut at 56 characters and get _2/_3 suffixes.
+    tool_names:
+      "GET_dsmfg:MfgItem_ID_dsmfg:MfgItemInstance_dsmfg_ImplementedEngOccurrence": instance_get_implemented_eng_occurrence
+      "GET_dsmfg:MfgItem_ID_dsmfg:MfgItemInstance_dsmfg_ImplementedEngOccurrence_ATTACH": instance_attach_implemented_eng_occurrence
+      "GET_dsmfg:MfgItem_ID_dsmfg:MfgItemInstance_dsmfg_ImplementedEngOccurrence_DETACH": instance_detach_implemented_eng_occurrence
+      "invoke_dsmfg:getMfgItemInstanceFromImplementedEngOccurrence": get_mfg_instances_from_implemented_eng_occurrence
+      "GET_dsmfg:MfgItem_ID_dsmfg:MfgItemInstance_dsmfg_Dependency": instance_get_dependencies
+      "GET_dsmfg:MfgItem_ID_dsmfg:MfgItemInstance_dsmfg_Dependency_ATTACH": instance_attach_dependency
+      "GET_dsmfg:MfgItem_ID_dsmfg:MfgItemInstance_dsmfg_Dependency_DETACH": instance_detach_dependency
+      "GET_dsmfg:MfgItem_PID_dsmfg:MfgItemInstance_ID_dscfg:Filterable": instance_get_effectivity
+      "POST_dsmfg:MfgItem_PID_dsmfg:MfgItemInstance_ID_dscfg:Filterable_set_variant": instance_set_variant_effectivity
+      "POST_dsmfg:MfgItem_PID_dsmfg:MfgItemInstance_ID_dscfg:Filterable_unset_variant": instance_unset_variant_effectivity
+      "POST_dsmfg:MfgItem_PID_dsmfg:MfgItemInstance_ID_dscfg:Filterable_set_evolution": instance_set_evolution_effectivity
+      "POST_dsmfg:MfgItem_PID_dsmfg:MfgItemInstance_ID_dscfg:Filterable_unset_evolution": instance_unset_evolution_effectivity
+      "GETAll_dsmfg:MfgItem_ID_dsmfg:MfgItemContextualImplementLink": item_list_contextual_implement_links
+      "GET_dsmfg:MfgItem_PID_dsmfg:MfgItemContextualImplementLink_ID": item_get_contextual_implement_link
+      "PATCH_dsmfg:MfgItem_PID_dsmfg:MfgItemContextualImplementLink_ID": item_update_contextual_implement_link
+      "DELETE_dsmfg:MfgItem_PID_dsmfg:MfgItemContextualImplementLink_ID": item_delete_contextual_implement_link
+
+  - name: manufacturer_equivalent_items
+    file: MEI.json
+    enabled: true
+    # dssrc corpus (ENOVIA sourcing): Manufacturer Equivalent Items.
+    # Tools appear as "mei_<operation>", e.g. mei_GET_dssrcManufacturerEquivalentItems_SEARCH
+    prefix: mei
+    # Same route as manufacturing so both share the gateway session/API key.
+    server_preference: APIGateway
+    exclude_tags: []
+    exclude_operation_ids: []
+    exclude_paths: []
+
+  - name: qualifications
+    file: Qualification.json
+    enabled: true
+    # dssrc qualifications (ENOVIA sourcing): links parts to Manufacturer
+    # Equivalent Items. Tools appear as "qual_<operation>".
+    prefix: qual
+    # Must use the gateway: the spec's non-gateway server is {Sourcing},
+    # which this server has no URL setting for.
+    server_preference: APIGateway
+    exclude_tags: []
+    exclude_operation_ids: []
+    exclude_paths: []
+
+  - name: documents
+    file: Document.json
+    enabled: true
+    # Document Web Services (3DSpace): documents attached to items (e.g. as
+    # Specification) and their files. Tools appear as "doc_<operation>".
+    prefix: doc
+    server_preference: APIGateway
+    exclude_tags: []
+    exclude_operation_ids: []
+    exclude_paths: []
+
+  - name: usersgroups
+    file: Usergroup.json
+    enabled: true
+    # UsersGroup Web Services: user groups and their members (e.g. the groups
+    # used as route/approval assignees). Tools appear as "ug_<operation>".
+    # Served by the tenant's own UsersGroup service, not 3DSpace or the gateway:
+    # {UsersGroup} = TDX_USERSGROUP_URL, else derived from TDX_BASE_URL
+    # (https://<tenant>-<region>-usersgroup.3dexperience.3ds.com).
+    prefix: ug
+    server_preference: UsersGroup
+    exclude_tags: []
+    exclude_operation_ids: []
+    exclude_paths: []
+
+  - name: routes
+    file: Route.json
+    enabled: true
+    # Routes Web Services (dsrt): routes and route templates, their tasks,
+    # assignees and contents (e.g. a Change Action's approval route).
+    # Tools appear as "rt_<operation>".
+    prefix: rt
+    server_preference: APIGateway
+    exclude_tags: []
+    exclude_operation_ids: []
+    exclude_paths: []
+
+  - name: engineering
+    file: Engineering.json
+    enabled: true
+    # Engineering Web Services (dseng): Engineering Items, their instances (EBOM),
+    # search/locate, expand, replace, alternates, change control and configuration.
+    # Tools appear as "eng_<operation>", e.g. eng_GET_Search_dseng_EngItem_Search
+    prefix: eng
+    server_preference: APIGateway
+    exclude_tags: []
+    exclude_operation_ids: []
+    exclude_paths: []
+    # Short, unambiguous tool names (operationId -> name). Without these,
+    # long operationIds are cut at 56 characters and get _2/_3 suffixes.
+    tool_names:
+      "GET_dseng:EngItem_PID_dseng:EngInstance_ID_dscfg:Filterable": instance_get_effectivity
+      "POST_dseng:EngItem_PID_dseng:EngInstance_ID_dscfg:Filterable_set_variant": instance_set_variant_effectivity
+      "POST_dseng:EngItem_PID_dseng:EngInstance_ID_dscfg:Filterable_unset_variant": instance_unset_variant_effectivity
+      "POST_dseng:EngItem_PID_dseng:EngInstance_ID_dscfg:Filterable_set_evolution": instance_set_evolution_effectivity
+      "POST_dseng:EngItem_PID_dseng:EngInstance_ID_dscfg:Filterable_unset_evolution": instance_unset_evolution_effectivity
+      "GET_FETCH_dseng:EngItem_PID_dseng:EngInstance_ID_dscfg:ConfiguredInstance": instance_get_configured_instance
+      "POST_SET_dseng:EngItem_PID_dseng:EngInstance_ID_dscfg:ConfiguredInstance": instance_set_configured_instance
+      "POST_UPDATE_dseng:EngItem_PID_dseng:EngInstance_ID_dscfg:ConfiguredInstance": instance_update_configured_instance
+      "POST_DETACH_dseng:EngItem_PID_dseng:EngInstance_ID_dscfg:ConfiguredInstance": instance_unset_configured_instance
+
+  - name: portfolio
+    file: Portfolio.json
+    enabled: true
+    # Portfolio Web Services (dspfl): models and model versions, variants and
+    # variant values, variability groups and options, parameters, configuration
+    # rules, product configurations and manufacturing plans.
+    # Tools appear as "pfl_<operation>", e.g. pfl_dspflModelVersion_SearchClasses
+    prefix: pfl
+    server_preference: APIGateway
+    exclude_tags: []
+    exclude_operation_ids: []
+    exclude_paths: []
+    # Short, unambiguous tool names (operationId -> name). Without these,
+    # long operationIds are cut at 56 characters and get _2/_3 suffixes.
+    tool_names:
+      "dspfl:ModelVersion_dspfl:OptionGroupInstance_PatchResources": modelversion_update_option_group_instance
+      "dspfl:ModelVersion_dspfl:OptionGroupInstance_DeleteResources": modelversion_delete_option_group_instance
+      "dspfl:ModelVersion_dspfl:ProductConfiguration_PatchResources": modelversion_update_product_configuration
+      "dspfl:ModelVersion_dspfl:ProductConfiguration_PostSubResource": modelversion_modify_product_configuration
+
+  # - name: change_action
+  #   file: ChangeAction.json
+  #   enabled: false
+  #   prefix: chg
+  #   exclude_tags: ["internal"]

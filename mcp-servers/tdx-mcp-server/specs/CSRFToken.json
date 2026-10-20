@@ -1,0 +1,59 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "3DSpace CSRF token API",
+    "version": "1.0.0",
+    "description": "Technical API to get CSRF tokens for 3DSpace services. Some web APIs located in 3DSpace service require a CSRF token. This API allows you to retrieve such tokens. Their own endpoints also usually return the token."
+  },
+  "servers": [
+    {
+      "url": "https://r1132101250099-us1-apigateway.3dexperience.3ds.com/api/3dspace-csrf/v1",
+      "description": "3DSpace CSRF Gateway Server"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Returns a CSRF token",
+        "operationId": "getCsrfToken",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "csrf": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "example": "ENO_CSRF_TOKEN"
+                        },
+                        "value": {
+                          "type": "string",
+                          "example": "PU8D-SW0N-MKKL-GE1U-0CJ6-937Y-0UTN-HSM"
+                        }
+                      },
+                      "required": ["name", "value"]
+                    }
+                  },
+                  "required": ["success", "statusCode", "csrf"]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

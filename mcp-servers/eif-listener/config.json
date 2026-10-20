@@ -1,0 +1,9 @@
+{
+  "JmsUrl":"failover:(ssl://eu1-demo-msgbus.3dexperience.3ds.com:61617,ssl://eu1-demo-msgbus-1.3dexperience.3ds.com:61617)?randomize=false&nested.soTimeout=60000&nested.soWriteTimeout=60000",
+  "AgentId": "89850390-2abd-4b0a-a659-b5e86c670c7d",
+  "TenantId": "OI000629352",
+  "Topic": "",
+  "OutputDir": "events"
+}
+
+

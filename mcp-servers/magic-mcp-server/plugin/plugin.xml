@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin id="com.arun.magicbridge"
+        name="Magic MCP Bridge"
+        version="1.0.0"
+        provider-name="Arun Joseph"
+        class="com.arun.magicbridge.BridgePlugin">
+    <requires>
+        <api version="1.0"/>
+    </requires>
+    <runtime>
+        <library name="magicbridge.jar"/>
+    </runtime>
+</plugin>

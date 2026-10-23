@@ -211,8 +211,12 @@ def instance_attrs(inst: dict) -> dict:
     if inst.get("description"):
         out["description"] = inst["description"]
     q = inst.get("quantity")
-    if isinstance(q, dict) and q.get("inputValue") not in (None, ""):
-        out["quantity"] = {k: q[k] for k in ("magnitude", "inputValue", "inputUnit") if k in q}
+    if isinstance(q, dict):
+        # reads come back as {magnitude, unit, value}; creates take {magnitude, inputUnit, inputValue}
+        val = q.get("inputValue", q.get("value"))
+        unit = q.get("inputUnit", q.get("unit"))
+        if val not in (None, "") and unit:
+            out["quantity"] = {"magnitude": q.get("magnitude", ""), "inputValue": str(val), "inputUnit": unit}
     for k in ("contQuantity", "lossQuantity", "isConstQty", "useCase"):
         if inst.get(k) not in (None, ""):
             out[k] = inst[k]
@@ -315,9 +319,8 @@ class Copier:
             for k in kids:
                 ct = tree["items"][k["child"]].get("type")
                 if ct in CONTINUOUS_REFS and "quantity" not in k["attrs"]:
-                    w.append(f"{tree['items'][pid].get('title')} -> {tree['items'][k['child']].get('title')}: continuous "
-                             "item but the source instance has no readable quantity; the target instance may be refused "
-                             "or get a default quantity")
+                    w.append(f"{tree['items'][pid].get('title')} -> {k['name'] or tree['items'][k['child']].get('title')}: "
+                             "continuous instance with no quantity set in the source; the target will use its default")
         if self.src.tenant == self.tgt.tenant:
             w.append("source and target are the same tenant" + ("" if self.rec["options"]["title_suffix"] else
                      " and there is no --title-suffix: the copies will have the same titles as the originals"))

@@ -77,8 +77,9 @@ class Tenant:
                 cid = spec["referencedObject"]["identifier"]
                 if cid not in self.items:
                     return httpx.Response(400, json={"message": f"reference {cid} not found"})
-                if self.items[cid]["type"].startswith("ProcessContinuous") and "quantity" not in (spec.get("attributes") or {}):
-                    return httpx.Response(400, json={"message": "quantity is mandatory for continuous instances"})
+                q = (spec.get("attributes") or {}).get("quantity")
+                if q is not None and set(q) != {"magnitude", "inputValue", "inputUnit"}:
+                    return httpx.Response(400, json={"message": "Payload is not valid: quantity"})
                 iid = self.link(pid, cid, **(spec.get("attributes") or {}))
                 out.append({"id": iid})
             return self.ok(out)
@@ -114,7 +115,8 @@ def make_source():
     d = s.add("AJ PP 200", "Provide")
     cpr = s.add("Glue", "ProcessContinuousProvide")
     s.link(a, b); s.link(a, c); s.link(a, b)               # B used twice under A
-    s.link(a, cpr, quantity={"magnitude": "Volume", "inputValue": "0.5", "inputUnit": "l"})
+    s.link(a, cpr, quantity={"magnitude": "LENGTH", "unit": "METER", "value": 0.5}, isConstQty=False)   # read shape
+    s.link(b, cpr)                                                                                   # no quantity set
     s.link(b, c); s.link(b, d)                             # C shared by A and B
     s.add("AJ MA 101 old")                                 # makes the title search non-unique
     return s, a
@@ -155,7 +157,7 @@ def main():
     rc, out = run(["AJ MA 101"], src, tgt)
     check(rc == 0, "dry run exits 0")
     check(src.writes == 0 and tgt.writes == 0, "dry run writes nothing to either tenant")
-    check("To create in OI000999001: 5 items, 6 instances" in out, "plan counts: 5 distinct items, 6 instances")
+    check("To create in OI000999001: 5 items, 7 instances" in out, "plan counts: 5 distinct items, 7 instances")
     check("(same item as above)" in out, "shared sub-assembly shown once, later marked as a repeat")
     check("Dry run: nothing was written" in out, "dry run says nothing was written")
     plan_file = latest_run()
@@ -191,7 +193,11 @@ def main():
     check(ti.get("planningRequired") == "Yes" and ti.get("outsourced") == "No" and ti.get("description") == "desc of AJ MA 101"
           and ti.get("dsmfg:EnterpriseReference") == {"partNumber": "PN-101"}, "description, planning required, outsourced, part number copied")
     glue_inst = [i for i in tgt_f.inst[root_t] if tgt_f.items[i["referencedObject"]["identifier"]]["title"] == "Glue"]
-    check(glue_inst and glue_inst[0].get("quantity", {}).get("inputValue") == "0.5", "continuous instance quantity copied")
+    check(glue_inst and glue_inst[0].get("quantity") == {"magnitude": "LENGTH", "inputValue": "0.5", "inputUnit": "METER"}
+          and glue_inst[0].get("isConstQty") is False, "continuous quantity read as value/unit is created as inputValue/inputUnit")
+    bt = rec["items"][[k for k, v in rec["tree"]["items"].items() if v["title"] == "AJ MA 100"][0]]["target_id"]
+    g2 = [i for i in tgt_f.inst[bt] if tgt_f.items[i["referencedObject"]["identifier"]]["title"] == "Glue"]
+    check(g2 and "quantity" not in g2[0], "continuous instance without a source quantity is created without one")
 
     # 5) run again on the finished target: nothing to create
     rc, out = run(["--resume", str(rec_path), "--execute", "--yes"], src, tgt_f)

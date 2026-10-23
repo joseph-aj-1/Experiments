@@ -9,6 +9,7 @@ own README with setup steps.
 | [`magic-mcp-server`](magic-mcp-server) | Catia Magic Systems of Systems Architect: Python MCP server + Java plugin bridge | Locally only (needs Catia Magic on the same PC) |
 | [`float-on-release`](float-on-release) | Replaces a released Manufacturing Item in its parents' MBOMs; triggered by EIF "Status Change → Released" events | Locally |
 | [`configured-mbom-builder`](configured-mbom-builder) | Builds configured MBOMs from an Excel template | Locally |
+| [`mbom-copier`](mbom-copier) | Copies an MBOM (Manufacturing Items + instances) from one tenant to another; dry run by default | Locally |
 | [`eif-listener`](eif-listener) | .NET listener that receives 3DEXPERIENCE EIF events and writes them to disk for Float on Release | Locally |
 
 ## Secrets

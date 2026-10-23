@@ -19,6 +19,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 import mbom_copy  # noqa: E402
 
+mbom_copy.RETRY_DELAY = 0.01
 mbom_copy.RUNS = HERE / "runs"
 
 

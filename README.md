@@ -6,6 +6,7 @@ Published with GitHub Pages at https://joseph-aj-1.github.io/Experiments/
 | --- | --- |
 | [mfgitem-viewer/](mfgitem-viewer/) | 3DEXPERIENCE 3DDashboard widget: Manufacturing Item details, multi-level BOM, Manufacturer Equivalent Items, Specification documents, DRAFT PDF export |
 | [route-viewer/](route-viewer/) | 3DEXPERIENCE 3DDashboard widget: Route task details, including the members of user groups assigned to tasks |
+| [mbom-copier/](mbom-copier/) | 3DEXPERIENCE 3DDashboard widget: preview an MBOM and copy it to another tenant through the local MBOM Copier service ([mcp-servers/mbom-copier](mcp-servers/mbom-copier/)) |
 
 ## GitHub Pages setup (once)
 Settings > Pages > Build and deployment > Source: **Deploy from a branch**, Branch: **main**, folder **/ (root)**.

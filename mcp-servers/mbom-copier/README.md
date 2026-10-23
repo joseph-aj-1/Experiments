@@ -45,6 +45,19 @@ You can identify the source item by its physical ID, its exact title, or its nam
 | `--source` / `--target` | Use other env files, for example to copy in the other direction. |
 | `--yes` | Skips the confirmation prompt. |
 
+## With the widget
+
+The [MBOM Copier widget](../../mbom-copier/) does the same copy from a 3DDashboard. You drop the item, see a preview of the structure, then run Dry run and Copy. It talks to a small service on this PC:
+
+```powershell
+.\.venv\Scripts\python.exe mbom_service.py
+```
+
+- The service listens on 127.0.0.1:8765 and prints a pairing token the first time it starts. The token is kept in `service.json`.
+- The widget reads the source with your dashboard sign-in, so `source.env` isn't used.
+- The widget's Settings screen writes `target.env`.
+- The service writes the same `runs\*.json` records as the script, so a run started in one can be finished in the other.
+
 ## What it does
 
 1. **Reads** the whole structure below the root on the source, with the Details masks. Shared sub-assemblies are read once.
@@ -77,6 +90,7 @@ New items get the target's own autonames and start In Work.
 
 ```
 python tests/test_copy.py
+python tests/test_service.py
 ```
 
 This runs 23 checks against two in-memory tenants:

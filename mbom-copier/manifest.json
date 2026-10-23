@@ -1,0 +1,5 @@
+{
+  "version": "1.0.0",
+  "css": ["css/mbom-copier.css"],
+  "js": ["js/core.js", "js/ui.js", "js/source.js", "js/service.js", "js/copy.js", "js/main.js"]
+}

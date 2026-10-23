@@ -41,6 +41,7 @@ REL = "/resources/v1/modeler/dsmfg/dsmfg:MfgItem/{}"
 DETAILS = {"$mask": "dsmfg:MfgItemMask.Details"}
 INST_DETAILS = {"$mask": "dsmfg:MfgItemInstanceMask.Details"}
 MAX_DEPTH = 25
+RETRY_DELAY = 2.0          # seconds; doubled/tripled on later attempts
 CONTINUOUS_REFS = {"ProcessContinuousProvide", "ProcessContinuousCreateMaterial", "ContinuousByProduct"}
 TYPE_LABELS = {"CreateAssembly": "Mfg Assembly", "Provide": "Provided Part", "CreateMaterial": "Mfg Material",
                "CreateKit": "Kit", "ProcessContinuousProvide": "Continuous Provided Material",
@@ -106,7 +107,7 @@ class Api:
             for attempt in range(4):
                 r = await self.c.request(method, path, **kw)
                 if r.status_code in (429, 502, 503, 504) and attempt < 3:
-                    await asyncio.sleep(2 * (attempt + 1))
+                    await asyncio.sleep(RETRY_DELAY * (attempt + 1))
                     continue
                 if r.status_code >= 400:
                     raise CopyError(f"{self.tenant}: {method} {path} -> HTTP {r.status_code}: {r.text[:400]}")
@@ -194,15 +195,42 @@ async def read_tree(src: Api, root: dict) -> dict:
 
     await visit(root["id"], (root["id"],))
     print(file=sys.stderr)
+    return finish_tree(root["id"], items, children, src.tenant)
+
+
+def build_tree(root_id: str, items: dict, raw_children: dict, tenant: str = "source") -> dict:
+    """Tree from data read elsewhere (the widget): items {id: item}, raw_children {id: [instance as read]}."""
+    if root_id not in items:
+        raise CopyError(f"{tenant}: the root item {root_id} is missing from the data")
+    children = {pid: [{"inst": i.get("id"), "name": i.get("name") or i.get("title") or "", "child": ref_id(i),
+                       "type": i.get("type") or "", "attrs": instance_attrs(i)} for i in insts]
+                for pid, insts in raw_children.items()}
+    return finish_tree(root_id, items, children, tenant)
+
+
+def finish_tree(root_id: str, items: dict, children: dict, tenant: str) -> dict:
+    """Check references, cycles and depth; add the depth-first order of distinct items."""
     order: list[str] = []          # distinct items, depth-first, first-seen
 
-    def walk(i: str):
+    def walk(i: str, path: tuple[str, ...]):
         order.append(i)
-        for k in children.get(i, []):
-            if k["child"] not in order:
-                walk(k["child"])
-    walk(root["id"])
-    return {"root": root["id"], "items": items, "children": children, "order": order}
+        if i not in children:
+            raise CopyError(f"{tenant}: the instances of {items[i].get('title')} were not read")
+        for k in children[i]:
+            c = k["child"]
+            if not c:
+                raise CopyError(f"{tenant}: instance {k['inst']} under {items[i].get('title')} has no reference")
+            if c not in items:
+                raise CopyError(f"{tenant}: child item {c} under {items[i].get('title')} could not be read (access?)")
+            if c in path:
+                raise CopyError(f"{tenant}: the structure has a cycle at {items[i].get('title')} -> {items[c].get('title')}")
+            if len(path) >= MAX_DEPTH:
+                raise CopyError(f"{tenant}: the structure is deeper than {MAX_DEPTH} levels")
+            if c not in order:
+                walk(c, path + (c,))
+    walk(root_id, (root_id,))
+    return {"root": root_id, "items": {i: items[i] for i in order},
+            "children": {i: children[i] for i in order}, "order": order}
 
 
 def input_qty(q) -> dict | None:
@@ -267,29 +295,35 @@ def shown(path: Path) -> str:
 
 
 class Copier:
-    def __init__(self, src: Api, tgt: Api, record: dict, record_path: Path):
-        self.src, self.tgt, self.rec, self.path = src, tgt, record, record_path
+    def __init__(self, source: str, tgt: Api, record: dict, record_path: Path, quiet: bool = False):
+        self.source, self.tgt, self.rec, self.path, self.quiet = source, tgt, record, record_path, quiet
 
     def save(self):
         self.path.write_text(json.dumps(self.rec, indent=1))
 
+    def say(self, msg: str):
+        """Progress line: printed by the script, kept in the record for the widget."""
+        self.rec.setdefault("events", []).append(msg)
+        if not self.quiet:
+            print(msg)
+
     def note(self, msg: str):
         self.rec["log"].append(f"{now()} {msg}")
+        self.say(msg)
         self.save()
-        print(msg)
 
     @classmethod
-    def new(cls, src: Api, tgt: Api, tree: dict, reuse: bool, suffix: str) -> "Copier":
+    def new(cls, source: str, tgt: Api, tree: dict, reuse: bool, suffix: str, quiet: bool = False) -> "Copier":
         RUNS.mkdir(exist_ok=True)
         root = tree["items"][tree["root"]]
         safe = re.sub(r"[^A-Za-z0-9]+", "_", root.get("title") or root["id"])[:40]
-        path = RUNS / f"{datetime.now():%Y%m%d-%H%M%S}_{safe}_{src.tenant}_to_{tgt.tenant}.json"
-        rec = {"source": src.tenant, "target": tgt.tenant, "options": {"reuse_existing": reuse, "title_suffix": suffix},
+        path = RUNS / f"{datetime.now():%Y%m%d-%H%M%S}_{safe}_{source}_to_{tgt.tenant}.json"
+        rec = {"source": source, "target": tgt.tenant, "options": {"reuse_existing": reuse, "title_suffix": suffix},
                "started": now(), "status": "planned", "tree": tree,
                "items": {i: {"title": (tree["items"][i].get("title") or tree["items"][i].get("name") or "") + suffix}
                          for i in tree["order"]},
                "instances": {}, "log": []}
-        return cls(src, tgt, rec, path)
+        return cls(source, tgt, rec, path, quiet)
 
     # ---------------------------------------------------------------- plan
     async def check_target(self):
@@ -354,7 +388,7 @@ class Copier:
                     and not self.magnitude_of(i)):
                 w.append(f"{tree['items'][i].get('title')}: continuous item with no magnitude in the source; "
                          "the target will refuse to create it")
-        if self.src.tenant == self.tgt.tenant:
+        if self.source == self.rec["target"]:
             w.append("source and target are the same tenant" + ("" if self.rec["options"]["title_suffix"] else
                      " and there is no --title-suffix: the copies will have the same titles as the originals"))
         return w
@@ -373,10 +407,37 @@ class Copier:
                 c["failed"] += bool(r.get("error"))
         return c
 
+    def plan_rows(self) -> list[dict]:
+        """The plan as rows (tree order, shared items repeated once as 'repeat') for a UI."""
+        tree, items, rows, printed = self.rec["tree"], self.rec["items"], [], set()
+
+        def row(iid: str, level: int, inst: dict | None):
+            it, x = tree["items"][iid], items[iid]
+            r = {"level": level, "id": iid, "title": it.get("title") or "", "name": it.get("name") or "",
+                 "type": it.get("type") or "", "type_label": TYPE_LABELS.get(it.get("type"), it.get("type") or ""),
+                 "revision": it.get("revision") or "", "instance": (inst or {}).get("name", ""),
+                 "action": "done" if x.get("created") else x["action"], "target_title": x.get("title"),
+                 "target_name": x.get("target_name") or "", "target_id": x.get("target_id") or "",
+                 "note": x.get("note") or "", "error": x.get("error") or "", "repeat": iid in printed}
+            if inst:
+                ir = self.rec["instances"].get(inst["inst"], {})
+                r["quantity"] = (inst["attrs"].get("quantity") or {})
+                r["instance_status"] = "skip" if ir.get("skip") else "done" if ir.get("target_id") else \
+                    "error" if ir.get("error") else "pending"
+                r["instance_error"] = ir.get("error") or ""
+            rows.append(r)
+            if r["repeat"]:
+                return
+            printed.add(iid)
+            for k in tree["children"].get(iid, []):
+                row(k["child"], level + 1, k)
+        row(tree["root"], 0, None)
+        return rows
+
     def print_plan(self):
         tree, items = self.rec["tree"], self.rec["items"]
         label = {"create": "CREATE", "reuse": "REUSE ", "inside": "  —   "}
-        print(f"\nPlan: {self.src.tenant}  ->  {self.tgt.tenant}\n")
+        print(f"\nPlan: {self.source}  ->  {self.tgt.tenant}\n")
         print(f"{'Action':8} {'Structure':60} {'Type':22} {'Source name':28} Target")
         printed: set[str] = set()
 
@@ -427,10 +488,10 @@ class Copier:
                 m = Api.members(d)[0]
                 x.update(target_id=m["id"], target_name=m.get("name"), created=now())
                 x.pop("error", None)
-                print(f"  created {x['title']} -> {m.get('name')}")
+                self.say(f"  created {x['title']} -> {m.get('name')}")
             except Exception as e:
                 x["error"] = str(e)
-                print(f"  FAILED  {x['title']}: {e}")
+                self.say(f"  FAILED  {x['title']}: {e}")
             self.save()
         await asyncio.gather(*(one(i) for i in todo))
 
@@ -460,10 +521,10 @@ class Copier:
                     n += 1
                 except Exception as e:
                     r["error"] = str(e)
-                    print(f"  FAILED  {p['title']} -> {c['title']}: {e}")
+                    self.say(f"  FAILED  {p['title']} -> {c['title']}: {e}")
                 self.save()
             if n:
-                print(f"  {n} instance(s) under {p['title']}")
+                self.say(f"  {n} instance(s) under {p['title']}")
         await asyncio.gather(*(under(i) for i in parents))
 
     async def verify(self) -> list[str]:
@@ -491,7 +552,7 @@ class Copier:
 
     async def execute(self) -> bool:
         self.rec["status"] = "running"
-        self.note(f"copy started: {self.src.tenant} -> {self.tgt.tenant}")
+        self.note(f"copy started: {self.source} -> {self.tgt.tenant}")
         await self.create_items()
         await self.create_instances()
         c = self.counts()
@@ -542,13 +603,13 @@ async def main(argv: list[str] | None = None, clients=None) -> int:
             if (rec["source"], rec["target"]) != (src.tenant, tgt.tenant):
                 raise CopyError(f"that run copies {rec['source']} -> {rec['target']}, but the env files point at "
                                 f"{src.tenant} -> {tgt.tenant}")
-            cp = Copier(src, tgt, rec, path)
+            cp = Copier(src.tenant, tgt, rec, path)
             cp.rec["log"].append(f"{now()} resumed")
         else:
             print(f"Reading '{a.root}' from {src.tenant}…")
             root = await resolve_root(src, a.root)
             tree = await read_tree(src, root)
-            cp = Copier.new(src, tgt, tree, a.reuse_existing, a.title_suffix)
+            cp = Copier.new(src.tenant, tgt, tree, a.reuse_existing, a.title_suffix)
         side = f"target ({Path(a.target).name})"
         print(f"Checking {tgt.tenant}…")
         await cp.check_target()

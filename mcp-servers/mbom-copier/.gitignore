@@ -5,3 +5,4 @@ runs/
 tests/runs/
 auth_debug.log
 __pycache__/
+service.json

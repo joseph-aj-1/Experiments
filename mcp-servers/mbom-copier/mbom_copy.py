@@ -482,6 +482,7 @@ async def main(argv: list[str] | None = None, clients=None) -> int:
     if not a.root and not a.resume:
         ap.error("give the source item, or --resume <run record>")
 
+    side = f"source ({Path(a.source).name})"
     try:
         if clients:
             sc, tc = clients
@@ -501,6 +502,7 @@ async def main(argv: list[str] | None = None, clients=None) -> int:
             root = await resolve_root(src, a.root)
             tree = await read_tree(src, root)
             cp = Copier.new(src, tgt, tree, a.reuse_existing, a.title_suffix)
+        side = f"target ({Path(a.target).name})"
         print(f"Checking {tgt.tenant}…")
         await cp.check_target()
         cp.print_plan()
@@ -522,6 +524,15 @@ async def main(argv: list[str] | None = None, clients=None) -> int:
         return 0 if await cp.execute() else 1
     except CopyError as e:
         print(f"ERROR: {e}", file=sys.stderr)
+        return 2
+    except httpx.HTTPError as e:
+        print(f"ERROR: could not reach the {side} tenant: {type(e).__name__}: {e}", file=sys.stderr)
+        return 2
+    except Exception as e:
+        if type(e).__name__ != "PassportLoginError":
+            raise
+        print(f"ERROR signing in to the {side} tenant: {e}\n"
+              f"Check TDX_USERNAME, TDX_PASSWORD, APIKey and SecurityContext in that file. Trace: auth_debug.log", file=sys.stderr)
         return 2
     finally:
         if not clients:

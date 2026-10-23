@@ -205,26 +205,46 @@ async def read_tree(src: Api, root: dict) -> dict:
     return {"root": root["id"], "items": items, "children": children, "order": order}
 
 
+def input_qty(q) -> dict | None:
+    """{magnitude, unit, value} (as read) -> {magnitude, inputUnit, inputValue} (as created)."""
+    if not isinstance(q, dict):
+        return None
+    val = q.get("inputValue", q.get("value"))
+    unit = q.get("inputUnit", q.get("unit"))
+    if val in (None, "") or not unit:
+        return None
+    return {"magnitude": q.get("magnitude", ""), "inputValue": str(val), "inputUnit": unit}
+
+
 def instance_attrs(inst: dict) -> dict:
     """Instance attributes worth carrying over (quantity matters for continuous items)."""
     out = {}
     if inst.get("description"):
         out["description"] = inst["description"]
-    q = inst.get("quantity")
-    if isinstance(q, dict):
-        # reads come back as {magnitude, unit, value}; creates take {magnitude, inputUnit, inputValue}
-        val = q.get("inputValue", q.get("value"))
-        unit = q.get("inputUnit", q.get("unit"))
-        if val not in (None, "") and unit:
-            out["quantity"] = {"magnitude": q.get("magnitude", ""), "inputValue": str(val), "inputUnit": unit}
+    # reads come back as {magnitude, unit, value}; creates take {magnitude, inputUnit, inputValue}
+    q = input_qty(inst.get("quantity"))
+    if q:
+        out["quantity"] = q
     for k in ("contQuantity", "lossQuantity", "isConstQty", "useCase"):
         if inst.get(k) not in (None, ""):
             out[k] = inst[k]
     return out
 
 
-def item_attrs(it: dict, title: str) -> dict:
+CONTINUOUS_QTYS = ("refQuantity", "minLotQuantity", "incrementQuantity", "maxLotQuantity", "yieldQuantity")
+
+
+def item_attrs(it: dict, title: str, magnitude: str = "") -> dict:
     a = {"title": title}
+    if it.get("type") in CONTINUOUS_REFS:
+        # continuous items must say what they are measured in (Length, Area, Mass, Volume)
+        mag = it.get("magnitude") or magnitude
+        if mag:
+            a["magnitude"] = mag
+        for k in CONTINUOUS_QTYS:
+            q = input_qty(it.get(k))
+            if q:
+                a[k] = q
     if it.get("description"):
         a["description"] = it["description"]
     yes_no = {"2": "Yes", "1": "No", True: "Yes", False: "No", "Yes": "Yes", "No": "No"}
@@ -238,6 +258,14 @@ def item_attrs(it: dict, title: str) -> dict:
 
 
 # --------------------------------------------------------------------------- copier
+def shown(path: Path) -> str:
+    """Path as the user should type it (relative to the tool folder when possible)."""
+    try:
+        return str(Path(path).resolve().relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 class Copier:
     def __init__(self, src: Api, tgt: Api, record: dict, record_path: Path):
         self.src, self.tgt, self.rec, self.path = src, tgt, record, record_path
@@ -321,6 +349,11 @@ class Copier:
                 if ct in CONTINUOUS_REFS and "quantity" not in k["attrs"]:
                     w.append(f"{tree['items'][pid].get('title')} -> {k['name'] or tree['items'][k['child']].get('title')}: "
                              "continuous instance with no quantity set in the source; the target will use its default")
+        for i in tree["order"]:
+            if (self.rec["items"][i]["action"] == "create" and tree["items"][i].get("type") in CONTINUOUS_REFS
+                    and not self.magnitude_of(i)):
+                w.append(f"{tree['items'][i].get('title')}: continuous item with no magnitude in the source; "
+                         "the target will refuse to create it")
         if self.src.tenant == self.tgt.tenant:
             w.append("source and target are the same tenant" + ("" if self.rec["options"]["title_suffix"] else
                      " and there is no --title-suffix: the copies will have the same titles as the originals"))
@@ -371,6 +404,17 @@ class Copier:
         for w in self.warnings():
             print(f"WARNING: {w}")
 
+    def magnitude_of(self, iid: str) -> str:
+        """The item's own magnitude, else the magnitude of a quantity on an instance of it."""
+        tree = self.rec["tree"]
+        if tree["items"][iid].get("magnitude"):
+            return tree["items"][iid]["magnitude"]
+        for kids in tree["children"].values():
+            for k in kids:
+                if k["child"] == iid and (k["attrs"].get("quantity") or {}).get("magnitude"):
+                    return k["attrs"]["quantity"]["magnitude"]
+        return ""
+
     # ---------------------------------------------------------------- execute
     async def create_items(self):
         tree = self.rec["tree"]
@@ -379,7 +423,7 @@ class Copier:
         async def one(iid: str):
             x, it = self.rec["items"][iid], tree["items"][iid]
             try:
-                d = await self.tgt.call("POST", MFG, json={"items": [{"type": it["type"], "attributes": item_attrs(it, x["title"])}]})
+                d = await self.tgt.call("POST", MFG, json={"items": [{"type": it["type"], "attributes": item_attrs(it, x["title"], self.magnitude_of(iid))}]})
                 m = Api.members(d)[0]
                 x.update(target_id=m["id"], target_name=m.get("name"), created=now())
                 x.pop("error", None)
@@ -455,7 +499,7 @@ class Copier:
         root = self.rec["items"][self.rec["tree"]["root"]]
         if c["failed"]:
             self.rec["status"] = "incomplete"
-            self.note(f"{c['failed']} step(s) failed. Fix the cause, then: python mbom_copy.py --resume {self.path.relative_to(ROOT)} --execute")
+            self.note(f"{c['failed']} step(s) failed. Fix the cause, then: python mbom_copy.py --resume {shown(self.path)} --execute")
             return False
         if problems:
             self.rec["status"] = "copied with differences"
@@ -493,7 +537,7 @@ async def main(argv: list[str] | None = None, clients=None) -> int:
             sc, tc = make_client(load_profile(Path(a.source))), make_client(load_profile(Path(a.target)))
         src, tgt = Api(sc, sc.tenant_id), Api(tc, tc.tenant_id)
         if a.resume:
-            path = Path(a.resume)
+            path = Path(a.resume).resolve()
             rec = json.loads(path.read_text())
             if (rec["source"], rec["target"]) != (src.tenant, tgt.tenant):
                 raise CopyError(f"that run copies {rec['source']} -> {rec['target']}, but the env files point at "
@@ -513,7 +557,7 @@ async def main(argv: list[str] | None = None, clients=None) -> int:
         print(f"\nRun record: {cp.path}")
         if not a.execute:
             print("Dry run: nothing was written. Add --execute to create the copy" +
-                  (f" (or --resume {cp.path.relative_to(ROOT)} --execute to create exactly this plan)." if c["create"] or c["inst_create"] else "."))
+                  (f" (or --resume {shown(cp.path)} --execute to create exactly this plan)." if c["create"] or c["inst_create"] else "."))
             return 0
         if not c["create"] and not c["inst_create"]:
             print("Nothing to create.")

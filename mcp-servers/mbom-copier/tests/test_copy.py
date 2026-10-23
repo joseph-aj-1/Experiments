@@ -62,6 +62,11 @@ class Tenant:
             return self.ok([i for i in self.items.values() if q in i["title"].lower() or q in i["name"].lower()])
         if req.method == "POST" and path == "/dsmfg:MfgItem":
             it = body["items"][0]
+            if it["type"].startswith("ProcessContinuous") and not it["attributes"].get("magnitude"):
+                return httpx.Response(400, json={"status": 400, "message": "Payload Attribute Missing  magnitude "})
+            for k, v in it["attributes"].items():
+                if k.endswith("Quantity") and set(v) != {"magnitude", "inputValue", "inputUnit"}:
+                    return httpx.Response(400, json={"message": f"Payload is not valid: {k}"})
             iid = self.add(it["attributes"]["title"], it["type"])
             self.items[iid].update({k: v for k, v in it["attributes"].items() if k != "title"})
             return self.ok([self.items[iid]])
@@ -113,7 +118,8 @@ def make_source():
     b = s.add("AJ MA 100")
     c = s.add("AJ PP 100", "Provide")
     d = s.add("AJ PP 200", "Provide")
-    cpr = s.add("Glue", "ProcessContinuousProvide")
+    cpr = s.add("Glue", "ProcessContinuousProvide",          # no magnitude on the item: taken from its instance
+                minLotQuantity={"magnitude": "LENGTH", "unit": "METER", "value": 5.0})
     s.link(a, b); s.link(a, c); s.link(a, b)               # B used twice under A
     s.link(a, cpr, quantity={"magnitude": "LENGTH", "unit": "METER", "value": 0.5}, isConstQty=False)   # read shape
     s.link(b, cpr)                                                                                   # no quantity set
@@ -181,7 +187,10 @@ def main():
     check(rc == 1 and rec["status"] == "incomplete" and "--resume" in out, "a failing target leaves an incomplete run and says how to resume")
     made_items = len(tgt_f.items)
     tgt_f.fail_after = None
-    rc, out = run(["--resume", str(rec_path), "--execute", "--yes"], src, tgt_f)
+    import os
+    os.chdir(HERE.parent)
+    rel = os.path.relpath(rec_path, HERE.parent)
+    rc, out = run(["--resume", rel, "--execute", "--yes"], src, tgt_f)
     rec = json.loads(rec_path.read_text())
     check(rc == 0 and rec["status"] == "done", "resume finishes the copy (%s)" % rec["status"])
     root_t = rec["items"][a]["target_id"]
@@ -193,6 +202,9 @@ def main():
     check(ti.get("planningRequired") == "Yes" and ti.get("outsourced") == "No" and ti.get("description") == "desc of AJ MA 101"
           and ti.get("dsmfg:EnterpriseReference") == {"partNumber": "PN-101"}, "description, planning required, outsourced, part number copied")
     glue_inst = [i for i in tgt_f.inst[root_t] if tgt_f.items[i["referencedObject"]["identifier"]]["title"] == "Glue"]
+    glue_t = tgt_f.items[glue_inst[0]["referencedObject"]["identifier"]] if glue_inst else {}
+    check(glue_t.get("magnitude") == "LENGTH" and glue_t.get("minLotQuantity") == {"magnitude": "LENGTH", "inputValue": "5.0", "inputUnit": "METER"},
+          "continuous item created with magnitude (from its instance quantity) and lot quantity in create shape")
     check(glue_inst and glue_inst[0].get("quantity") == {"magnitude": "LENGTH", "inputValue": "0.5", "inputUnit": "METER"}
           and glue_inst[0].get("isConstQty") is False, "continuous quantity read as value/unit is created as inputValue/inputUnit")
     bt = rec["items"][[k for k, v in rec["tree"]["items"].items() if v["title"] == "AJ MA 100"][0]]["target_id"]
@@ -224,6 +236,12 @@ def main():
     # 8) title suffix + same tenant warning
     rc, out = run([a, "--title-suffix", " (copy)"], src, src)
     check("AJ MA 101 (copy)" in out and "same tenant" in out and src.writes == 0, "physical ID as root, suffix shown, same-tenant warning")
+
+    s9, a9 = make_source()
+    lone = s9.add("Paint", "ProcessContinuousProvide")
+    s9.link(a9, lone)
+    rc, out = run([a9], s9, Tenant("OI000999004"))
+    check("Paint: continuous item with no magnitude" in out, "continuous item without any magnitude is flagged in the dry run")
 
     print(f"\n{'ALL PASSED' if not fails else str(len(fails)) + ' FAILED'}")
     return 1 if fails else 0

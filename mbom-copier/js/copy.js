@@ -76,14 +76,15 @@
   M.copy = function () {
     var v = M.plan, ui = M.ui;
     if (!v || M.busy) return;
-    if (!armed) {
+    var recheck = v.status === "copied with differences" && !(v.counts.create || v.counts.inst_create || v.counts.assoc_todo);
+    if (!armed && !recheck) {
       armed = setTimeout(function () { armed = null; M.refreshButtons(); }, 8000);
       ui.copy.textContent = "Click again to create " + v.counts.create + " items, " + v.counts.inst_create + " instances" +
         (v.counts.assoc_todo ? " and " + v.counts.assoc_todo + " associations" : "") + " in " + v.target;
       ui.copy.className = "btn danger";
       return;
     }
-    clearTimeout(armed); armed = null;
+    if (armed) { clearTimeout(armed); armed = null; }
     M.busy = true; M.refreshButtons();
     M.setStatus("Starting the copy…");
     var files = v.files_needed || [];
@@ -106,6 +107,7 @@
   M.copyLabel = function () {
     var v = M.plan;
     if (armed) return null;
+    if (v && v.status === "copied with differences" && !(v.counts.create || v.counts.inst_create || v.counts.assoc_todo)) return "Check again";
     return v && v.status === "incomplete" || v && v.status === "failed" ? "Copy again (finish)" : "Copy to " + ((v && v.target) || "target");
   };
 })(window.MBC);

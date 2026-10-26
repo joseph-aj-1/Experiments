@@ -617,6 +617,15 @@ class Associations:
                     for l in batch:
                         self._fail(l, f"add to change action {s.get('target_name') or label}: {e}")
 
+    async def ca_proposed(self, ca_tid: str) -> set:
+        """Item ids that are proposed changes of a target CA (read once per verification)."""
+        if ca_tid not in self._ca_pc:
+            async def read():
+                r = await self.api("ca").call("GET", f"/changeaction/{ca_tid}", params={"$fields": "proposedChanges"})
+                return {(pc.get("where") or {}).get("identifier") for pc in r.get("proposedChanges") or []}
+            self._ca_pc[ca_tid] = asyncio.ensure_future(read())
+        return await self._ca_pc[ca_tid]
+
     # ------------------------------------------------------------------ verify
     async def verify(self) -> list[str]:
         problems, items = [], {}
@@ -646,14 +655,12 @@ class Associations:
                             if p["target_id"] not in have:
                                 problems.append(f"{self.title(iid)}: plant {p['name']} is not linked in the target")
                 if "changeActions" in kinds:
-                    dsmfg = dsmfg or self.api("dsmfg")
-                    r = await dsmfg.call("GET", f"/dsmfg:MfgItem/{tid}/dslc:changeImpact")
-                    have = {(o.get("referencedObject") or {}).get("identifier")
-                            for m in dsmfg.members(r) for o in (m.get("Impacting Objects") or [])}
                     for l in ls:
-                        if l["kind"] == "changeActions" and self.st["cas"][l["ref"]].get("target_id") not in have:
-                            problems.append(f"{self.title(iid)}: change action {self.st['cas'][l['ref']].get('target_name')} "
-                                            "does not show on the item in the target")
+                        if l["kind"] != "changeActions":
+                            continue
+                        c = self.st["cas"][l["ref"]]
+                        if tid not in await self.ca_proposed(c["target_id"]):
+                            problems.append(f"{self.title(iid)}: not among the proposed changes of {c.get('target_name')} in the target")
                 if "meis" in kinds:
                     qual = qual or self.api("qual")
                     r = await qual.call("POST", "/qualifications/contextLocate",
@@ -666,6 +673,7 @@ class Associations:
                             problems.append(f"{self.title(iid)}: MEI qualification for {l['ref']} not found in the target")
             except Exception as e:
                 problems.append(f"{self.title(iid)}: could not read associations back ({e})")
+        self._ca_pc = {}
         await asyncio.gather(*(one(i, ls) for i, ls in items.items()))
         self.cp.rec.setdefault("verification", {})["associations"] = problems
         self.save()

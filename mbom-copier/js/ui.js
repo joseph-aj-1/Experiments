@@ -126,7 +126,7 @@
     var todo = v && (v.counts.create || v.counts.inst_create || v.counts.assoc_todo);
     var label = M.copyLabel();
     if (label) { ui.copy.textContent = label; ui.copy.className = "btn danger"; }
-    M.enable(ui.copy, !!(v && ready && !M.busy && todo && v.status !== "running"));
+    M.enable(ui.copy, !!(v && ready && !M.busy && (todo || v.status === "copied with differences") && v.status !== "running"));
     ui.reuse.disabled = ui.suffix.disabled = !!M.busy;
     M.ASSOC_KINDS.forEach(function (k) { ui.assoc[k.key].disabled = !!M.busy; });
   };

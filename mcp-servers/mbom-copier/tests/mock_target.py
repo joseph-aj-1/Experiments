@@ -201,7 +201,8 @@ class FullTenant(Tenant):
         if m and m.group(1) in self.cas:
             ca = self.cas[m.group(1)]
             if req.method == "GET":
-                return httpx.Response(200, json={k: v for k, v in ca.items() if k != "proposedChanges"})
+                fields = req.url.params.get("$fields", "")
+                return httpx.Response(200, json={k: v for k, v in ca.items() if k != "proposedChanges" or "proposedChanges" in fields})
             if req.method == "PATCH":
                 if body.get("cestamp") != ca["cestamp"]:
                     return httpx.Response(400, json={"errorCode": "1", "errorMessage": "cestamp is outdated"})

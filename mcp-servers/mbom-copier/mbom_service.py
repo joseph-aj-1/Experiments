@@ -268,11 +268,17 @@ class Engine:
                 if missing:
                     raise mc.CopyError(f"{len(missing)} specification file(s) were not received from the widget yet")
                 if not c["create"] and not c["inst_create"] and not c.get("assoc_todo"):
-                    cp.say("Nothing to create.")
-                    await cp.verify()
-                    cp.rec["status"] = "done"
+                    cp.say("Nothing to create — checking the target again.")
+                    problems = await cp.verify()
+                    if cp.assoc:
+                        problems += await cp.assoc.verify()
+                    for p_ in problems:
+                        cp.say(f"DIFFERENCE: {p_}")
+                    cp.rec["status"] = "copied with differences" if problems else "done"
+                    if not problems:
+                        cp.say("The target matches the source.")
                     cp.save()
-                    return True
+                    return not problems
                 return await cp.execute()
 
             fut = asyncio.run_coroutine_threadsafe(go(), self.loop)

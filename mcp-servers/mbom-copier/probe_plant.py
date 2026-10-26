@@ -1,9 +1,9 @@
-"""Show what the target tenant's plant searches return (read-only).
+"""Find out how the target tenant answers plant lookups (read-only).
 
-    python probe_plant.py RSK SG2
+    python probe_plant.py RSK
 
-Uses target.env. Prints the raw answers of the organizations search and of 3DSearch
-for each name, so the plant lookup can be matched to what the tenant really returns.
+Uses target.env. Tries every plausible read-only route and prints, for each, whether it
+answered and the start of the answer. Paste the whole output back.
 """
 import asyncio
 import json
@@ -16,34 +16,55 @@ import mbom_copy as mc
 ROOT = Path(__file__).resolve().parent
 
 
-async def main(names):
+def short(r, n=700):
+    try:
+        return json.dumps(r)[:n]
+    except Exception:
+        return str(r)[:n]
+
+
+async def main(name):
     creds = mc.load_profile(ROOT / "target.env")
-    org = mc.Api(mc.make_client(creds, ax.SERVICES["org"], "org"), "target")
+    space = mc.Api(mc.make_client(creds, [("3DSpace", "{3DSpace}")], "space"), "target")
     srch = mc.Api(mc.make_client(creds, ax.SERVICES["search"], "search"), "target")
-    print("organizations base:", org.c.base_url)
-    print("3DSearch base:     ", srch.c.base_url)
-    for name in names:
-        print(f"\n===== {name}")
-        for label, coro in (
-            ("organizations search", org.call("GET", "/organizations/search", params={"$searchStr": name, "$top": 10})),
-            ("3DSearch Org:", srch.call("POST", "/search", json={
-                "label": "mbom-copier", "locale": "en", "select_predicate": ["ds6w:label", "ds6w:type", "physicalid", "ds6w:identifier"],
-                "select_file": [], "query": f"Org:{name}", "order_field": "relevance", "order_dir": "desc",
-                "nresults": 10, "start": "0", "source": ["3dspace"], "tenant": creds.tenant or ""})),
-            ("3DSearch type Plant", srch.call("POST", "/search", json={
-                "label": "mbom-copier", "locale": "en", "select_predicate": ["ds6w:label", "ds6w:type", "physicalid", "ds6w:identifier"],
-                "select_file": [], "query": f'[ds6w:type]:"Plant" AND "{name}"', "order_field": "relevance", "order_dir": "desc",
-                "nresults": 10, "start": "0", "source": ["3dspace"], "tenant": creds.tenant or ""})),
-        ):
+    print("3DSpace :", space.c.base_url)
+    print("3DSearch:", srch.c.base_url)
+    tenant = creds.tenant or ""
+
+    gets = [
+        ("org collection, searchStr", "/resources/v1/modeler/organizations", {"$searchStr": name}),
+        ("org collection", "/resources/v1/modeler/organizations", None),
+        ("org collection, type Plant", "/resources/v1/modeler/organizations", {"type": "Plant"}),
+        ("org search (top)", "/resources/v1/modeler/organizations/search", {"$searchStr": name, "$top": 5}),
+        ("pno organization list", "/resources/modeler/pno/organization", None),
+        ("pno organization, name", f"/resources/modeler/pno/organization/{name}", None),
+        ("pno person (my orgs)", "/resources/modeler/pno/person", {"current": "true", "select": "organizations"}),
+        ("mfg responsibility search", "/resources/v1/modeler/dsmfg/dsmfg:MfgResponsibility/search", {"$searchStr": name}),
+    ]
+    for label, path, params in gets:
+        try:
+            r = await space.call("GET", path, params=params)
+            print(f"\n--- GET {label}: OK\n{short(r)}")
+        except Exception as e:
+            print(f"\n--- GET {label}: FAILED {str(e)[:300]}")
+
+    queries = [f"Org:{name}", name, f'"{name}"', f"[ds6w:label]:{name}", f'[ds6w:type]:"Plant"', f"[ds6w:type]:Plant AND {name}"]
+    for q in queries:
+        for src in (["3dspace"], None):
+            body = {"label": "mbom-copier", "locale": "en", "select_predicate": ["ds6w:label", "ds6w:type", "physicalid"],
+                    "select_file": [], "query": q, "order_field": "relevance", "order_dir": "desc",
+                    "nresults": 5, "start": "0", "tenant": tenant}
+            if src:
+                body["source"] = src
             try:
-                r = await coro
-                print(f"--- {label}: OK")
-                print(json.dumps(r, indent=1)[:2500])
+                r = await srch.call("POST", "/search", json=body)
+                n = len(r.get("results") or []) if isinstance(r, dict) else "?"
+                print(f"\n--- 3DSearch {q!r} source={src}: OK, {n} results\n{short(r, 500)}")
             except Exception as e:
-                print(f"--- {label}: FAILED {str(e)[:400]}")
-    await org.c.aclose()
+                print(f"\n--- 3DSearch {q!r} source={src}: FAILED {str(e)[:300]}")
+    await space.c.aclose()
     await srch.c.aclose()
 
 
 if __name__ == "__main__":
-    asyncio.run(main(sys.argv[1:] or ["RSK"]))
+    asyncio.run(main(sys.argv[1] if len(sys.argv) > 1 else "RSK"))

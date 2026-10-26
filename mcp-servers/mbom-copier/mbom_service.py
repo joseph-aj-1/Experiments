@@ -434,15 +434,74 @@ def serve(engine: Engine | None = None, port: int | None = None, cfg: dict | Non
     return httpd
 
 
-def main() -> int:
-    logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+PORT_CANDIDATES = (8765, 27123, 38765, 47123, 52765, 18765, 28765)
+
+
+def port_free(port: int) -> bool:
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as so:
+        try:
+            so.bind(("127.0.0.1", port))
+            return True
+        except OSError:
+            return False
+
+
+def pick_port(cfg: dict) -> int:
+    """First free port (Windows often reserves ranges for Hyper-V/WSL; 8765 may be one of them)."""
+    import random
+    for p in (cfg.get("port"),) + PORT_CANDIDATES + tuple(random.sample(range(20000, 60000), 30)):
+        if p and port_free(int(p)):
+            return int(p)
+    raise SystemExit("No free local port found.")
+
+
+def save_config(cfg: dict):
+    CONFIG.write_text(json.dumps(cfg, indent=1))
+
+
+def headless_logging():
+    """Started without a console (pythonw / the .exe at sign-in): write output to service.log."""
+    if sys.stdout is None or sys.stderr is None:
+        f = open(ROOT / "service.log", "a", buffering=1, encoding="utf-8")
+        sys.stdout = sys.stderr = f
+    logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+                        stream=sys.stderr)
+
+
+def main(argv=None) -> int:
+    import argparse
+    ap = argparse.ArgumentParser(description="MBOM Copier service (local, 127.0.0.1 only)")
+    ap.add_argument("--info", action="store_true", help="print the address, pairing token and target, then exit")
+    ap.add_argument("--pick-port", action="store_true", help="choose a free local port, save it, print it, then exit")
+    ap.add_argument("--port", type=int, help="use and save this port")
+    ap.add_argument("--new-token", action="store_true", help="make a new pairing token (widgets must pair again)")
+    a = ap.parse_args(argv)
+    headless_logging()
     cfg = load_config()
+    if a.new_token:
+        cfg["token"] = secrets.token_urlsafe(18)
+        save_config(cfg)
+    if a.port:
+        cfg["port"] = a.port
+        save_config(cfg)
+    if a.pick_port:
+        cfg["port"] = pick_port(cfg)
+        save_config(cfg)
+        print(cfg["port"])
+        return 0
+    t = target_summary()
+    if a.info:
+        print(f"Address: http://127.0.0.1:{cfg['port']}")
+        print(f"Pairing token: {cfg['token']}")
+        print(f"Target: {t['tenant'] or 'not set up yet'}" + (f" ({t['username']})" if t.get("username") else ""))
+        return 0
     try:
         httpd = serve(cfg=cfg)
     except OSError as x:
-        print(f"Could not listen on 127.0.0.1:{cfg['port']} ({x}). Is the service already running?")
+        print(f"Could not listen on 127.0.0.1:{cfg['port']} ({x}). Is the service already running? "
+              f"Otherwise choose another port with: --pick-port")
         return 1
-    t = target_summary()
     print(f"MBOM Copier service {VERSION} on http://127.0.0.1:{cfg['port']}")
     print(f"Pairing token (paste into the widget's Settings once): {cfg['token']}")
     print(f"Target: {t['tenant'] or 'not set up yet - use Settings in the widget'}")

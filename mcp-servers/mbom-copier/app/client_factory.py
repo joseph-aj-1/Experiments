@@ -242,7 +242,8 @@ def _backend_root(url: httpx.URL) -> str:
 # Auth trace: one line per HTTP hop, written to <project>/auth_debug.log.
 # Records method, URL without query string (so no tickets), status,
 # content-type and cookie NAMES only -- never values or passwords.
-_TRACE_FILE = Path(__file__).resolve().parent.parent / "auth_debug.log"
+_TRACE_FILE = (Path(__import__("sys").executable).resolve().parent if getattr(__import__("sys"), "frozen", False)
+               else Path(__file__).resolve().parent.parent) / "auth_debug.log"
 
 
 def _trace(msg: str) -> None:

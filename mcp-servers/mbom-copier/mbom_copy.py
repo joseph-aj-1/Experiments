@@ -34,7 +34,8 @@ from pathlib import Path
 import httpx
 from dotenv import dotenv_values
 
-ROOT = Path(__file__).resolve().parent
+# next to the .exe when packaged with PyInstaller, else next to this file
+ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
 RUNS = ROOT / "runs"
 MFG = "/dsmfg:MfgItem"
 REL = "/resources/v1/modeler/dsmfg/dsmfg:MfgItem/{}"

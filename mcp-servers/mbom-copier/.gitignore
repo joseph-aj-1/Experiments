@@ -6,3 +6,8 @@ tests/runs/
 auth_debug.log
 __pycache__/
 service.json
+service.log
+.buildenv/
+.build/
+mbom-copier-service.exe
+probe*.txt

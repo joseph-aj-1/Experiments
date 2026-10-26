@@ -176,7 +176,8 @@ class Associations:
                 elif hits:
                     p.update(status="ambiguous", error=f"{len(hits)} plants named '{name}' in the target")
                 else:
-                    p.update(status="missing", error=f"no plant named '{name}' in the target")
+                    p.update(status="missing", error=f"no plant named '{name}' found in the target "
+                                                      f"(searched — {getattr(self, '_last_seen', '')})")
             except Pending as e:
                 p.update(status="unknown", error=str(e))
             except Exception as e:
@@ -195,7 +196,7 @@ class Associations:
         if no search works at all the plant is reported as 'lookup failed' and never guessed."""
         if not PLANT_API["confirmed"]:
             raise Pending("plant lookup is switched off")
-        worked, errors = False, []
+        worked, errors, seen = False, [], []
         for via, search in (("organizations search", self._plants_org_search), ("3DSearch", self._plants_3dsearch)):
             try:
                 hits = await search(name)
@@ -203,6 +204,7 @@ class Associations:
                 errors.append(f"{via}: {str(e)[:160]}")
                 continue
             worked = True
+            seen.append(f"{via}: " + (", ".join(f"{h.get('name')} [{h.get('type') or '?'}]" for h in hits[:6]) or "no results"))
             exact = {}
             for h in hits:
                 if norm(h.get("name")) == norm(name) and "plant" in norm(h.get("type") or "plant") and h.get("id"):
@@ -210,6 +212,7 @@ class Associations:
             if exact:
                 return list(exact.values())
         if worked:
+            self._last_seen = "; ".join(seen + errors)
             return []
         raise Pending("no plant search worked in the target (" + "; ".join(errors) + ")")
 

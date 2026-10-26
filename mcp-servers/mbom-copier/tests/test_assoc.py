@@ -120,7 +120,7 @@ def main() -> int:
     check(ac["plants"]["pending"] == 3 and ac["plants"]["skip"] == 1, "plants: Pune x2 + Houston linked, Mumbai skipped (%s)" % ac["plants"])
     check(ac["meis"]["pending"] == 2 and ac["new"]["meis"] == 1, "MEIs: one new, one reused from the target")
     check(any("Mumbai" in w for w in v["warnings"]), "missing plant named in the warnings")
-    check(any("Change Action API spec" in w for w in v["warnings"]), "change actions flagged as waiting for the spec")
+    check(ac["changeActions"]["pending"] == 2 and ac["new"]["cas"] == 1, "change actions: one new CA, two items to add")
     rows = {r["title"]: r for r in v["rows"] if not r["repeat"]}
     ba = {x["kind"]: x for x in rows["AJ PP 100"]["assoc"] if x["kind"] == "meis" and "TI-555" in x["label"]}
     check(ba and ba["meis"]["action"] == "reuse", "row badge: TI-555 MEI reused")
@@ -167,16 +167,23 @@ def main() -> int:
     q = {(x["target"]["id"], x["contexts"][0]["id"], x["preferred"]) for x in tgt.quals}
     check(q == {(new_mei[0]["id"], tc, "TRUE"), (existing_mei, tc, "FALSE")} and len(tgt.quals) == 2,
           "Manufacturing Equivalent Qualifications on the copied part, preferred kept, no duplicates after the retry")
-    cab = [x for x in v["rows"][0]["assoc"] if x["kind"] == "changeActions"]
-    check(cab and cab[0]["status"] == "pending" and "waiting" in cab[0]["note"], "change actions left pending until the spec is in")
+    check(len(tgt.cas) == 1, "one change action created in the target (%d)" % len(tgt.cas))
+    ca = list(tgt.cas.values())[0]
+    check(ca["title"] == "Introduce AJ MA 101" and ca["description"] == "new line" and ca["severity"] == "Medium",
+          "CA title, description and severity copied")
+    check(sorted(pc["where"]["identifier"] for pc in ca["proposedChanges"]) == sorted([ta, tb])
+          and all(pc["target"] == "CurrentVersion" and pc["whats"] == [{"what": "Modify"}] for pc in ca["proposedChanges"]),
+          "both copied items are proposed changes of the new CA")
     check(v["verification"]["associations"] == [], "associations read back from the target (%s)" % v["verification"].get("associations"))
     check(len(tgt.inst[ta]) == 4 and len(tgt.inst[tb]) == 3, "the structure itself is copied as before")
 
     # ---------------------------------------------------------------- run again: nothing duplicated
-    before = (len(tgt.docs), len(tgt.meis), len(tgt.quals), sum(len(x) for x in tgt.resp.values()))
+    before = (len(tgt.docs), len(tgt.meis), len(tgt.quals), sum(len(x) for x in tgt.resp.values()),
+              len(tgt.cas), sum(len(c["proposedChanges"]) for c in tgt.cas.values()))
     call("POST", "/execute", {"run": run})
     wait(run)
-    after = (len(tgt.docs), len(tgt.meis), len(tgt.quals), sum(len(x) for x in tgt.resp.values()))
+    after = (len(tgt.docs), len(tgt.meis), len(tgt.quals), sum(len(x) for x in tgt.resp.values()),
+             len(tgt.cas), sum(len(c["proposedChanges"]) for c in tgt.cas.values()))
     check(before == after, "running the copy again duplicates nothing %s -> %s" % (before, after))
 
     httpd.shutdown()

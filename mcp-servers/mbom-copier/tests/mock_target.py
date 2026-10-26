@@ -14,7 +14,7 @@ from test_copy import Tenant
 
 FCS = "https://fcs.test/fcs/servlet/fcs/checkin"
 BASES = {"dsmfg": "/api/dsmfg/v1", "mei": "/api/dssrc-manufacturerEquivalentItems/v1",
-         "qual": "/api/dssrc-qualifications/v1", "docs": "/api/documents/v1"}
+         "qual": "/api/dssrc-qualifications/v1", "docs": "/api/documents/v1", "ca": "/api/dslc:CA/v1"}
 
 
 class FullTenant(Tenant):
@@ -28,6 +28,7 @@ class FullTenant(Tenant):
         self.tickets: set[str] = set()
         self.receipts: dict[str, tuple] = {}
         self.fail_service: str | None = None       # make one web service refuse writes
+        self.cas: dict[str, dict] = {}
 
     def add_plant(self, name):
         pid = next(self.ids)
@@ -54,6 +55,11 @@ class FullTenant(Tenant):
                     m = re.fullmatch(r"/dsmfg:MfgItem/(\w+)/dsmfg:MfgResponsibility", sub)
                     if m:
                         return self.responsibility(req, m.group(1))
+                    m = re.fullmatch(r"/dsmfg:MfgItem/(\w+)/dslc:changeImpact", sub)
+                    if m and req.method == "GET":
+                        imp = [{"impactType": "PROPOSED", "referencedObject": {"identifier": c["id"], "type": "Change Action"}}
+                               for c in self.cas.values() if any(pc["where"]["identifier"] == m.group(1) for pc in c["proposedChanges"])]
+                        return self.ok([{"Impacting Objects": imp}])
                     return super().handler(req)
                 return getattr(self, "h_" + svc)(req, p.split(base, 1)[1], json.loads(req.content) if req.content and
                                           req.headers.get("content-type", "").startswith("application/json") else None)
@@ -154,6 +160,37 @@ class FullTenant(Tenant):
                     return httpx.Response(400, json={"message": "bad parent"})
                 self.docs[m.group(1)]["parents"].add(p["id"])
             return httpx.Response(200, json={"success": True, "data": [{"id": m.group(1)}]})
+        return httpx.Response(404, json={"message": f"no route {req.method} {path}"})
+
+    def h_ca(self, req, path, body):
+        self.calls.append((req.method, f"ca {path}"))
+        if req.method == "POST" and path == "/changeaction":
+            if not body.get("title") or not body.get("description"):
+                return httpx.Response(400, json={"errorCode": "1", "errorMessage": "title and description are required"})
+            if body.get("severity") not in (None, "Low", "Medium", "High"):
+                return httpx.Response(400, json={"errorCode": "1", "errorMessage": "bad severity"})
+            cid = next(self.ids)
+            self.cas[cid] = {"id": cid, "name": f"CA-{self.tid}-{next(self.seq):08d}", "title": body["title"], "description": body["description"],
+                             "severity": body.get("severity", "Low"), "state": "Prepare", "cestamp": f"CE{next(self.seq)}", "proposedChanges": []}
+            return httpx.Response(200, json={k: v for k, v in self.cas[cid].items() if k != "proposedChanges"})
+        m = re.fullmatch(r"/changeaction/(\w+)", path)
+        if m and m.group(1) in self.cas:
+            ca = self.cas[m.group(1)]
+            if req.method == "GET":
+                return httpx.Response(200, json={k: v for k, v in ca.items() if k != "proposedChanges"})
+            if req.method == "PATCH":
+                if body.get("cestamp") != ca["cestamp"]:
+                    return httpx.Response(400, json={"errorCode": "1", "errorMessage": "cestamp is outdated"})
+                pcs = [pc for a in body.get("add") or [] for pc in a.get("proposedChanges") or []]
+                if len(pcs) > 150:
+                    return httpx.Response(413, json={"errorCode": "1", "errorMessage": "max 150"})
+                for pc in pcs:
+                    w = pc.get("where") or {}
+                    if w.get("identifier") not in self.items or pc.get("target") not in ("CurrentVersion", "NewVersion", "NewBranch"):
+                        return httpx.Response(400, json={"errorCode": "1", "errorMessage": "bad proposed change"})
+                    ca["proposedChanges"].append(pc)
+                ca["cestamp"] = f"CE{next(self.seq)}"
+                return httpx.Response(200, json={k: v for k, v in ca.items() if k != "proposedChanges"})
         return httpx.Response(404, json={"message": f"no route {req.method} {path}"})
 
     def fcs(self, req):

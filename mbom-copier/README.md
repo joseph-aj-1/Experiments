@@ -7,7 +7,7 @@ Drop a Manufacturing Item in this widget and you see its whole MBOM. You can the
 - **Copy.** You click twice to confirm. The service then creates the items and instances in the target, shows its progress, and finishes by reading the target back and comparing it with the source. If a copy stops partway, press Copy again and it finishes; nothing is created twice.
 
 - **Also copy** associated objects of the copied items. Tick any of:
-  - **Change Actions:** a new CA per source CA, with the copied items as proposed changes. *Waiting for the Change Action API spec.*
+  - **Change Actions:** a new CA per source CA (title, description, severity), with the copied items as proposed changes (current version, Modify). State, approvals and realized changes start fresh.
   - **Plants:** Manufacturing Responsibility links, with plants matched by name in the target and the same Make/Buy. A plant missing in the target is reported and skipped. *Plant lookup is waiting for the organizations API spec.*
   - **MEIs:** reused if the target has the same manufacturer and part number, otherwise created, then qualified on the copied part with the same preferred and approved values.
   - **Specifications:** each document is created once in the target with its files and attached to every copied item that had it. The widget downloads the files from the source and hands them to the service.

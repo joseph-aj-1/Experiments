@@ -43,14 +43,17 @@ SERVICES = {
              ("APIGateway", "{APIGateway}/api/dssrc-qualifications/v1")],
     "docs": [("3DSpace", "{3DSpace}/resources/v1/modeler/documents"),
              ("APIGateway", "{APIGateway}/api/documents/v1")],
-    # The two below are confirmed from the specs Arun downloads (see CA_API / PLANT_API).
+    # Change Action Web Services 1.13 (tdx-mcp-server/specs/ChangeAction.json)
     "ca": [("3DSpace", "{3DSpace}/resources/v1/modeler/dslc"),
-           ("APIGateway", "{APIGateway}/api/dslc/v1")],
+           ("APIGateway", "{APIGateway}/api/dslc:CA/v1")],
+    # confirmed from the organizations spec once it is in (see PLANT_API)
     "org": [("3DSpace", "{3DSpace}/resources/v1/modeler")],
 }
 
 # Not yet confirmed against the official OpenAPI specs: writes stay off until they are.
-CA_API = {"confirmed": False}
+CA_API = {"confirmed": True,
+          # how a copied item is added to the new CA: work on its current (In Work) version
+          "target": "CurrentVersion", "what": "Modify", "batch": 150}
 PLANT_API = {"confirmed": False}
 
 
@@ -287,6 +290,7 @@ class Associations:
             if l["item"] != iid:
                 continue
             kind, rid, d = l["kind"], l["ref"], l.get("data") or {}
+            note = l.get("note") or ""
             if kind == "plants":
                 p = self.st["plants"].get(norm(d.get("name") or rid), {})
                 label = f"{d.get('name') or rid}" + (f" ({d.get('makeOrBuy')})" if d.get("makeOrBuy") else "")
@@ -307,8 +311,11 @@ class Associations:
                 action = "create" if not self.st["cas"].get(rid, {}).get("target_id") else "link"
                 if not CA_API["confirmed"]:
                     action = "pending-spec"
+                elif l["status"] != "skip" and not note:
+                    note = ("added as a proposed change (in the source: " + str(d.get("impact") or "impact").lower() +
+                            "); state, approvals and realized changes start fresh")
             out.append({"kind": kind, "label": label, "action": action, "status": l["status"],
-                        "note": l.get("note") or "", "error": l.get("error") or ""})
+                        "note": note, "error": l.get("error") or ""})
         order = {k: i for i, k in enumerate(KINDS)}
         return sorted(out, key=lambda b: order[b["kind"]])
 
@@ -482,12 +489,60 @@ class Associations:
 
     # ---- change actions
     async def run_cas(self):
+        """One new CA per source CA; the copied items it impacted become its proposed changes."""
         if not CA_API["confirmed"]:
             for _, l in self.links("changeActions", "pending"):
                 l["note"] = "waiting for the Change Action API spec; not created yet"
             self.save()
             return
-        raise Pending("change actions not implemented")   # filled in from the spec
+        cas, api = self.inp.get("changeActions") or {}, self.api("ca")
+        by_ca: dict[str, list] = {}
+        for _, l in self.links("changeActions"):
+            if l["status"] in ("pending", "error") and self.tid(l["item"]):
+                by_ca.setdefault(l["ref"], []).append(l)
+        for cid, ls in by_ca.items():
+            src, s = cas.get(cid) or {}, self.st["cas"].setdefault(cid, {})
+            label = src.get("name") or cid
+            try:
+                if not s.get("target_id"):
+                    body = {"title": src.get("title") or src.get("name") or "Copied change action",
+                            "description": src.get("description") or
+                            f"Copy of {src.get('name') or cid} from {self.cp.source}" + (f": {src['title']}" if src.get("title") else ""),
+                            "severity": src.get("severity") if src.get("severity") in ("Low", "Medium", "High") else "Low"}
+                    r = await api.call("POST", "/changeaction", json=body)
+                    if not r.get("id"):
+                        raise RuntimeError("the target returned no change action")
+                    s.update(target_id=r["id"], target_name=r.get("name"), cestamp=r.get("cestamp"), status="created", error="")
+                    self.save()
+                    self.say(f"  change action {r.get('name')} created (copy of {label})")
+            except Exception as e:
+                s.update(status="error", error=str(e))
+                for l in ls:
+                    self._fail(l, f"change action {label}: {e}")
+                continue
+            for i in range(0, len(ls), CA_API["batch"]):
+                batch = ls[i:i + CA_API["batch"]]
+                try:
+                    if not s.get("cestamp"):
+                        s["cestamp"] = (await api.call("GET", f"/changeaction/{s['target_id']}")).get("cestamp")
+                    body = {"cestamp": s["cestamp"], "add": [{"proposedChanges": [{
+                        "where": {k: v for k, v in self.item_ref(l["item"]).items() if k != "id"},
+                        "target": CA_API["target"], "whats": [{"what": CA_API["what"]}]} for l in batch]}]}
+                    try:
+                        r = await api.call("PATCH", f"/changeaction/{s['target_id']}", json=body)
+                    except Exception:
+                        # stale cestamp (someone else touched the CA): read it again once
+                        s["cestamp"] = (await api.call("GET", f"/changeaction/{s['target_id']}")).get("cestamp")
+                        body["cestamp"] = s["cestamp"]
+                        r = await api.call("PATCH", f"/changeaction/{s['target_id']}", json=body)
+                    s["cestamp"] = r.get("cestamp") or None
+                    for l in batch:
+                        self._done(l, target_id=s["target_id"])
+                    self.say(f"  {len(batch)} item(s) added to {s.get('target_name') or s['target_id']}")
+                except Exception as e:
+                    s["cestamp"] = None
+                    for l in batch:
+                        self._fail(l, f"add to change action {s.get('target_name') or label}: {e}")
 
     # ------------------------------------------------------------------ verify
     async def verify(self) -> list[str]:
@@ -517,6 +572,15 @@ class Associations:
                             p = self.st["plants"][norm((l.get("data") or {}).get("name") or l["ref"])]
                             if p["target_id"] not in have:
                                 problems.append(f"{self.title(iid)}: plant {p['name']} is not linked in the target")
+                if "changeActions" in kinds:
+                    dsmfg = dsmfg or self.api("dsmfg")
+                    r = await dsmfg.call("GET", f"/dsmfg:MfgItem/{tid}/dslc:changeImpact")
+                    have = {(o.get("referencedObject") or {}).get("identifier")
+                            for m in dsmfg.members(r) for o in (m.get("Impacting Objects") or [])}
+                    for l in ls:
+                        if l["kind"] == "changeActions" and self.st["cas"][l["ref"]].get("target_id") not in have:
+                            problems.append(f"{self.title(iid)}: change action {self.st['cas'][l['ref']].get('target_name')} "
+                                            "does not show on the item in the target")
                 if "meis" in kinds:
                     qual = qual or self.api("qual")
                     r = await qual.call("POST", "/qualifications/contextLocate",

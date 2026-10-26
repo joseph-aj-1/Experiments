@@ -155,8 +155,8 @@ with sync_playwright() as p:
     pg.click(".btn.go:text('Dry run')")
     pg.wait_for_function("document.querySelector('.status').textContent.indexOf('Dry run done') === 0", timeout=10000)
     summ = pg.inner_text(".summary")
-    check("1 new document" in summ and "1 new MEI" in summ, "summary counts new documents and MEIs (%s)" % summ)
-    check("Lyon" in summ and "Change Action API spec" in summ, "warnings: missing plant, change actions waiting (%s)" % summ)
+    check("1 new document" in summ and "1 new MEI" in summ and "1 new change action" in summ, "summary counts new documents, MEIs and CAs (%s)" % summ)
+    check("Lyon" in summ and "API spec" not in summ.split("Plant links")[0], "warnings: missing plant only (%s)" % summ)
     badges = pg.evaluate("Array.from(document.querySelectorAll('.badge')).map(function(b){return b.className + ' | ' + b.textContent})")
     check(any("k-plants" in x and "s-missing" in x and "Lyon" in x for x in badges), "Lyon marked missing in target")
     check(any("k-plants" in x and "Pune" in x and "link" in x for x in badges), "Pune will be linked")
@@ -179,8 +179,9 @@ with sync_playwright() as p:
     check(len(tgt.meis) == 1 and tgt.quals and tgt.quals[0]["contexts"][0]["id"] == t["AJ PP 100"] and tgt.quals[0]["preferred"] == "TRUE",
           "MEI created and qualified on the copied part, preferred kept")
     done = pg.evaluate("document.querySelectorAll('.badge.s-done').length")
-    check(done == 4, "badges show done: spec x2, plant, MEI (%d)" % done)
-    check("waiting" in pg.inner_text("table.bom"), "change action still shown as waiting")
+    check(done == 5, "badges show done: spec x2, plant, MEI, CA (%d)" % done)
+    check(len(tgt.cas) == 1 and [pc["where"]["identifier"] for pc in list(tgt.cas.values())[0]["proposedChanges"]] == [t["AJ MA 101"]],
+          "change action created with the copied top item as proposed change")
     pg.screenshot(path=str(HERE / "shot_assoc.png"), full_page=True)
     check(not errors, "no page errors %s" % errors)
     b_.close()

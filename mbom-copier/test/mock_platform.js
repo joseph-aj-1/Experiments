@@ -50,7 +50,8 @@
     if ((m = p.match(/^\/resources\/v1\/modeler\/dsmfg\/dsmfg:MfgItem\/(\w+)\/dslc:changeImpact$/)))
       return [200, { member: [{ "Impacting Objects": (A.impact && A.impact[m[1]]) || [] }] }];
     if ((m = p.match(/^\/resources\/v1\/modeler\/dslc\/changeaction\/(\w+)$/)))
-      return A.cas && A.cas[m[1]] ? [200, A.cas[m[1]]] : [404, { message: "no CA" }];
+      return A.cas && A.cas[m[1]] ? [200, Object.assign({}, A.cas[m[1]], u.searchParams.get("$fields") === "proposedChanges" ?
+        { proposedChanges: A.capc && A.capc[m[1]] || [] } : {})] : [404, { message: "no CA" }];
     if (p === "/resources/v1/modeler/dssrc/dssrc:ManufacturerEquivalentItems/search") {
       var s = u.searchParams.get("$searchStr");
       return [200, { result: { member: Object.keys(A.meis || {}).map(function (k) { return A.meis[k]; })

@@ -194,10 +194,18 @@
       });
     }).then(failures("change actions")).then(function () {
       return M.mapLimit(Object.keys(A.changeActions), 4, function (cid) {
-        return M.get("/resources/v1/modeler/dslc/changeaction/" + encodeURIComponent(cid)).then(function (r) {
+        return M.get("/resources/v1/modeler/dslc/changeaction/" + encodeURIComponent(cid) + "?$fields=proposedChanges").then(function (r) {
           var ca = (r && (r.member ? members(r)[0] : r)) || {};
           var o = A.changeActions[cid];
           ["name", "title", "description", "severity", "state", "type", "policy"].forEach(function (k) { if (ca[k]) o[k] = ca[k]; });
+          // each proposed change as in the source: target (current / new version / branch) and activities
+          o.proposed = {};
+          (ca.proposedChanges || []).forEach(function (pc) {
+            var w = idOf(pc.where || {});
+            if (!w) return;
+            o.proposed[w] = { target: pc.target || "", whats: (pc.whats || []).map(function (x) { return x.what; }).filter(Boolean),
+                              why: pc.why || "" };
+          });
         }, function () {});
       });
     });

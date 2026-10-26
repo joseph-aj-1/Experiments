@@ -80,7 +80,8 @@ def main() -> int:
                           "files": [{"id": "F1", "name": "00753-2350.pdf", "size": len(PDF)}]},
                  "DOC2": {"id": "DOC2", "name": "DOC-0000003", "title": "Tolerances", "files": [{"id": "F2", "name": "Tolerances.xlsx", "size": len(XLSX)}]}},
         "changeActions": {"CA1": {"id": "CA1", "name": "CA-00000012", "title": "Introduce AJ MA 101", "description": "new line",
-                                  "severity": "Medium", "state": "In Work"}},
+                                  "severity": "Medium", "state": "In Work",
+                                  "proposed": {a: {"target": "CurrentVersion", "whats": ["ChangeMaturityRelease"], "why": "release it"}}}},
     }
 
     cfg = svc.load_config()
@@ -169,9 +170,11 @@ def main() -> int:
     ca = list(tgt.cas.values())[0]
     check(ca["title"] == "Introduce AJ MA 101" and ca["description"] == "new line" and ca["severity"] == "Medium",
           "CA title, description and severity copied")
-    check(sorted(pc["where"]["identifier"] for pc in ca["proposedChanges"]) == sorted([ta, tb])
-          and all(pc["target"] == "CurrentVersion" and pc["whats"] == [{"what": "Modify"}] for pc in ca["proposedChanges"]),
-          "both copied items are proposed changes of the new CA")
+    pcs = {pc["where"]["identifier"]: pc for pc in ca["proposedChanges"]}
+    check(sorted(pcs) == sorted([ta, tb]), "both copied items are proposed changes of the new CA")
+    check(pcs[ta]["whats"] == [{"what": "ChangeMaturityRelease"}] and pcs[ta].get("why") == "release it",
+          "the release activity of the source CA is copied (Release Authorization)")
+    check(pcs[tb]["whats"] == [{"what": "Modify"}] and pcs[tb]["target"] == "CurrentVersion", "an item the source only realized becomes Modify")
     check(getattr(tgt, "cc", {}) == {ta: "ANY"}, "change control switched on only where the source item had it (%s)" % getattr(tgt, "cc", {}))
     check(v["verification"]["associations"] == [], "associations read back from the target (%s)" % v["verification"].get("associations"))
     check(len(tgt.inst[ta]) == 4 and len(tgt.inst[tb]) == 3, "the structure itself is copied as before")

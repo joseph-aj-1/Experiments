@@ -388,7 +388,9 @@ class Associations:
                 if not CA_API["confirmed"]:
                     action = "pending-spec"
                 elif l["status"] != "skip" and not note:
-                    note = ("added as a proposed change (in the source: " + str(d.get("impact") or "impact").lower() +
+                    pc = (ca.get("proposed") or {}).get(iid) or {}
+                    acts = ", ".join(pc.get("whats") or []) or CA_API["what"]
+                    note = (f"added as a proposed change: {acts} (in the source: " + str(d.get("impact") or "impact").lower() +
                             "); state, approvals and realized changes start fresh")
             out.append({"kind": kind, "label": label, "action": action, "status": l["status"],
                         "note": note, "error": l.get("error") or ""})
@@ -602,9 +604,7 @@ class Associations:
                 try:
                     if not s.get("cestamp"):
                         s["cestamp"] = (await api.call("GET", f"/changeaction/{s['target_id']}")).get("cestamp")
-                    body = {"cestamp": s["cestamp"], "add": [{"proposedChanges": [{
-                        "where": {k: v for k, v in self.item_ref(l["item"]).items() if k != "id"},
-                        "target": CA_API["target"], "whats": [{"what": CA_API["what"]}]} for l in batch]}]}
+                    body = {"cestamp": s["cestamp"], "add": [{"proposedChanges": [self.proposed_change(src, l) for l in batch]}]}
                     try:
                         r = await api.call("PATCH", f"/changeaction/{s['target_id']}", json=body)
                     except Exception:
@@ -629,6 +629,20 @@ class Associations:
                 return {(pc.get("where") or {}).get("identifier") for pc in r.get("proposedChanges") or []}
             self._ca_pc[ca_tid] = asyncio.ensure_future(read())
         return await self._ca_pc[ca_tid]
+
+    WHATS = ("ChangeMaturityRelease", "ChangeMaturityObsolete", "Modify")
+
+    def proposed_change(self, src_ca: dict, l: dict) -> dict:
+        """The proposed change for one copied item, as it is in the source CA (target and activities);
+        items the source CA only realized become 'current version / Modify'."""
+        pc = (src_ca.get("proposed") or {}).get(l["item"]) or {}
+        whats = [w for w in pc.get("whats") or [] if w in self.WHATS] or [CA_API["what"]]
+        target = pc.get("target") if pc.get("target") in ("CurrentVersion", "NewVersion", "NewBranch") else CA_API["target"]
+        out = {"where": {k: v for k, v in self.item_ref(l["item"]).items() if k != "id"}, "target": target,
+               "whats": [{"what": w} for w in whats]}
+        if pc.get("why"):
+            out["why"] = pc["why"]
+        return out
 
     def cc_wanted(self) -> list[str]:
         """Copied items whose source item has change control on ('Change Required: Yes')."""

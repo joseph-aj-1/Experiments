@@ -66,6 +66,8 @@ ASSOC = {
     "impact": {a: [{"impactType": "PROPOSED", "referencedObject": {"identifier": "CA77", "type": "Change Action",
                                                                    "relativePath": "/resources/v1/modeler/dslc/changeaction/CA77"}}]},
     "cc": {a: "ID"},
+    "capc": {"CA77": [{"internalid": "P1", "target": "CurrentVersion", "where": {"identifier": a, "type": "CreateAssembly"},
+                       "whats": [{"internalid": "W1", "what": "ChangeMaturityRelease"}]}]},
     "cas": {"CA77": {"id": "CA77", "name": "CA-00000077", "title": "Introduce AJ MA 400", "description": "test", "severity": "Low", "state": "In Work"}},
     "quals": [{"id": "Q1", "name": "MQ-100000", "type": "SRC Manufacturing Equivalent Qualification", "state": "In Work",
                "preferred": "TRUE", "approved": "Yes", "target": {"id": "MEIX", "type": "Physical Product"},
@@ -177,6 +179,8 @@ with sync_playwright() as p:
     check(done == 5, "badges show done: spec x2, plant, MEI, CA (%d)" % done)
     check(len(tgt.cas) == 1 and [pc["where"]["identifier"] for pc in list(tgt.cas.values())[0]["proposedChanges"]] == [t["AJ MA 101"]],
           "change action created with the copied top item as proposed change")
+    check(list(tgt.cas.values())[0]["proposedChanges"][0]["whats"] == [{"what": "ChangeMaturityRelease"}],
+          "release activity read from the source CA and copied")
     check(getattr(tgt, "cc", {}) == {t["AJ MA 101"]: "ANY"}, "change control switched on for the top item, as in the source")
     pg.screenshot(path=str(HERE / "shot_assoc.png"), full_page=True)
     check(not errors, "no page errors %s" % errors)

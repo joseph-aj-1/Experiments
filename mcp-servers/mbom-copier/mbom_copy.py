@@ -416,7 +416,7 @@ class Copier:
         if self.assoc:
             a = self.assoc.counts()
             c["assoc"] = a
-            c["assoc_todo"] = sum(a[k]["pending"] + a[k]["error"] for k in ("specs", "plants", "meis", "changeActions"))
+            c["assoc_todo"] = sum(a[k]["pending"] + a[k]["error"] for k in ("specs", "plants", "meis", "changeActions")) + a["cc_todo"]
             c["failed"] += self.assoc.failed()
         return c
 

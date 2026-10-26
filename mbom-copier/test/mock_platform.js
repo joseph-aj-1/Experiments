@@ -45,6 +45,8 @@
       return [200, { member: (A.resp && A.resp[m[1]]) || [] }];
     if ((m = p.match(/^\/resources\/v1\/modeler\/organizations\/(\w+)$/)))
       return A.orgs && A.orgs[m[1]] ? [200, { member: [A.orgs[m[1]]] }] : [404, { message: "no org" }];
+    if ((m = p.match(/^\/resources\/v1\/modeler\/dsmfg\/dsmfg:MfgItem\/(\w+)\/dslc:changeControl$/)))
+      return [200, { member: [{ "Change Control Status": (A.cc && A.cc[m[1]]) || "NONE", "Controlling Changes": [] }] }];
     if ((m = p.match(/^\/resources\/v1\/modeler\/dsmfg\/dsmfg:MfgItem\/(\w+)\/dslc:changeImpact$/)))
       return [200, { member: [{ "Impacting Objects": (A.impact && A.impact[m[1]]) || [] }] }];
     if ((m = p.match(/^\/resources\/v1\/modeler\/dslc\/changeaction\/(\w+)$/)))

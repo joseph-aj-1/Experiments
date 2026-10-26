@@ -185,6 +185,12 @@
         });
         A.items[id].changeActions = list;
         list.forEach(function (c) { A.changeActions[c.id] = A.changeActions[c.id] || { id: c.id }; });
+        // "Change Required" on the item (change control): NONE, ANY, ID or MANY
+        return M.get(MFG + encodeURIComponent(id) + "/dslc:changeControl").then(function (cr) {
+          var m = members(cr)[0] || {};
+          A.items[id].changeControl = { status: m["Change Control Status"] || "NONE",
+                                        controlling: (m["Controlling Changes"] || []).map(idOf) };
+        }, function () { /* not readable: leave it unknown */ });
       });
     }).then(failures("change actions")).then(function () {
       return M.mapLimit(Object.keys(A.changeActions), 4, function (cid) {
@@ -239,6 +245,7 @@
     Object.keys(src.assoc.items).forEach(function (id) {
       var a = src.assoc.items[id], o = {};
       M.ASSOC_KINDS.forEach(function (k) { if (out.options[k.key] && a[k.key] && a[k.key].length) o[k.key] = a[k.key]; });
+      if (out.options.changeActions && a.changeControl) o.changeControl = a.changeControl;
       if (Object.keys(o).length) out.items[id] = o;
     });
     if (out.options.meis) out.meis = src.assoc.meis;

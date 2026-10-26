@@ -331,6 +331,8 @@ class Associations:
             if st == "pending" and l["kind"] == "changeActions" and not CA_API["confirmed"]:
                 st = "waiting"           # planned, but nothing can be written until the spec is in
             c[l["kind"]][st] += 1
+        c["cc_todo"] = sum(1 for i in self.cc_wanted() if (self.st.get("cc") or {}).get(i) != "done") \
+            if self.options.get("changeActions") else 0
         c["new"] = {"meis": sum(1 for s in self.st["meis"].values() if s.get("action") == "create" and not s.get("created")),
                     "docs": sum(1 for d, s in self.st["docs"].items() if not s.get("target_id")
                                 and any(l["ref"] == d for _, l in self.links("specs", "pending"))),
@@ -340,7 +342,8 @@ class Associations:
         return c
 
     def failed(self) -> int:
-        return sum(1 for _, l in self.st["links"].items() if l["status"] == "error")
+        return sum(1 for _, l in self.st["links"].items() if l["status"] == "error") + \
+            sum(1 for v in (self.st.get("cc") or {}).values() if str(v).startswith("error"))
 
     def warnings(self) -> list[str]:
         w, c = [], self.counts()
@@ -403,6 +406,7 @@ class Associations:
             await self.run_meis()
         if opts.get("changeActions"):
             await self.run_cas()
+            await self.run_change_control()
         self.save()
 
     def _fail(self, l: dict, msg: str):
@@ -626,6 +630,27 @@ class Associations:
             self._ca_pc[ca_tid] = asyncio.ensure_future(read())
         return await self._ca_pc[ca_tid]
 
+    def cc_wanted(self) -> list[str]:
+        """Copied items whose source item has change control on ('Change Required: Yes')."""
+        per = self.inp.get("items") or {}
+        return [iid for iid in self.cp.rec["tree"]["order"]
+                if self.cp.rec["items"][iid]["action"] == "create"
+                and str((per.get(iid, {}).get("changeControl") or {}).get("status") or "NONE").upper() not in ("NONE", "")]
+
+    async def run_change_control(self):
+        api, cc = self.api("dsmfg"), self.st.setdefault("cc", {})
+        for iid in self.cc_wanted():
+            if cc.get(iid) == "done" or not self.tid(iid):
+                continue
+            try:
+                await api.call("POST", f"/dsmfg:MfgItem/{self.tid(iid)}/dslc:changeControl", json={})
+                cc[iid] = "done"
+                self.say(f"  change control switched on for {self.title(iid)}")
+            except Exception as e:
+                cc[iid] = f"error: {e}"
+                self.say(f"  FAILED  change control on {self.title(iid)}: {e}")
+            self.save()
+
     # ------------------------------------------------------------------ verify
     async def verify(self) -> list[str]:
         problems, items = [], {}
@@ -675,6 +700,16 @@ class Associations:
                 problems.append(f"{self.title(iid)}: could not read associations back ({e})")
         self._ca_pc = {}
         await asyncio.gather(*(one(i, ls) for i, ls in items.items()))
+        if self.options.get("changeActions"):
+            dsmfg = self.api("dsmfg")
+            for iid in self.cc_wanted():
+                try:
+                    r = await dsmfg.call("GET", f"/dsmfg:MfgItem/{self.tid(iid)}/dslc:changeControl")
+                    st = str((dsmfg.members(r) or [{}])[0].get("Change Control Status") or "NONE").upper()
+                    if st == "NONE":
+                        problems.append(f"{self.title(iid)}: change control (Change Required) is not on in the target")
+                except Exception as e:
+                    problems.append(f"{self.title(iid)}: could not read change control back ({e})")
         self.cp.rec.setdefault("verification", {})["associations"] = problems
         self.save()
         return problems

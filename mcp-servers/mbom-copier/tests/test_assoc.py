@@ -64,7 +64,8 @@ def main() -> int:
         "options": {"specs": True, "plants": True, "meis": True, "changeActions": True},
         "items": {
             a: {"specs": ["DOC1"], "plants": [{"id": "SRCPUNE", "name": "Pune", "makeOrBuy": "Make"}],
-                "changeActions": [{"id": "CA1", "impact": "PROPOSED"}]},
+                "changeActions": [{"id": "CA1", "impact": "PROPOSED"}],
+                "changeControl": {"status": "ID", "controlling": ["CA1"]}},
             b: {"specs": ["DOC1", "DOC2"], "plants": [{"id": "SRCPUNE", "name": "Pune", "makeOrBuy": "Make"},
                                                      {"id": "SRCMUM", "name": "Mumbai", "makeOrBuy": "Buy"}],
                 "changeActions": [{"id": "CA1", "impact": "REALIZED"}]},
@@ -171,6 +172,7 @@ def main() -> int:
     check(sorted(pc["where"]["identifier"] for pc in ca["proposedChanges"]) == sorted([ta, tb])
           and all(pc["target"] == "CurrentVersion" and pc["whats"] == [{"what": "Modify"}] for pc in ca["proposedChanges"]),
           "both copied items are proposed changes of the new CA")
+    check(getattr(tgt, "cc", {}) == {ta: "ANY"}, "change control switched on only where the source item had it (%s)" % getattr(tgt, "cc", {}))
     check(v["verification"]["associations"] == [], "associations read back from the target (%s)" % v["verification"].get("associations"))
     check(len(tgt.inst[ta]) == 4 and len(tgt.inst[tb]) == 3, "the structure itself is copied as before")
 

@@ -57,6 +57,13 @@ class FullTenant(Tenant):
                     m = re.fullmatch(r"/dsmfg:MfgItem/(\w+)/dsmfg:MfgResponsibility", sub)
                     if m:
                         return self.responsibility(req, m.group(1))
+                    m = re.fullmatch(r"/dsmfg:MfgItem/(\w+)/dslc:changeControl", sub)
+                    if m:
+                        self.cc = getattr(self, "cc", {})
+                        if req.method == "POST":
+                            self.cc[m.group(1)] = "ANY"
+                            return httpx.Response(200, json={"status": 200, "message": "activated"})
+                        return self.ok([{"Change Control Status": self.cc.get(m.group(1), "NONE"), "Controlling Changes": []}])
                     m = re.fullmatch(r"/dsmfg:MfgItem/(\w+)/dslc:changeImpact", sub)
                     if m and req.method == "GET":
                         imp = [{"impactType": "PROPOSED", "referencedObject": {"identifier": c["id"], "type": "Change Action"}}

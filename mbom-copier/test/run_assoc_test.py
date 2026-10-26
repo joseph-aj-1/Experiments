@@ -135,10 +135,10 @@ with sync_playwright() as p:
     # tick all four: they are read and shown in the preview
     for lab in labels:
         pg.check(f".opts.assoc label:has-text('{lab}') input")
-    pg.wait_for_function("document.querySelector('.assocnote').textContent.indexOf('Specifications: 2') >= 0 && "
+    pg.wait_for_function("document.querySelector('.assocnote').textContent.indexOf('Specifications: 1 on 2') >= 0 && "
                          "document.querySelector('.assocnote').textContent.indexOf('reading') < 0", timeout=10000)
     note = pg.inner_text(".assocnote")
-    check("Change Actions: 1" in note and "Plants: 2" in note and "MEIs: 1" in note and "Specifications: 2" in note, "counts per kind (%s)" % note)
+    check("Change Actions: 1 on 1 item" in note and "Plants: 2 on 2 items" in note and "MEIs: 1 on 1 item" in note and "Specifications: 1 on 2 items" in note, "counts per kind (%s)" % note)
     cells = pg.evaluate("Array.from(document.querySelectorAll('table.bom tbody tr:not(.errline)')).map(function(r){return [r.cells[1].textContent.trim(), r.querySelector('td.assoc') ? r.querySelector('td.assoc').textContent.trim() : null]})")
     row = {t: x for t, x in cells}
     check("CA CA-00000077 Introduce AJ MA 400 (proposed)" in row["AJ MA 101"] and "Spec 00753-2350 — 00753-2350.pdf" in row["AJ MA 101"],

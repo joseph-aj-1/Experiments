@@ -11,6 +11,7 @@
   var esc = M.esc, MFG = "/resources/v1/modeler/dsmfg/dsmfg:MfgItem";
   var MAX_DEPTH = 25;
 
+  M.searchSeq = 0;
   function looksLikePhysicalId(s) { return /^[0-9A-F]{32}$/i.test(s); }
   function refIdOf(inst) { return (inst.referencedObject && inst.referencedObject.identifier) || inst.reference || ""; }
 
@@ -22,8 +23,10 @@
     ui.results.innerHTML = "";
     if (looksLikePhysicalId(text)) return M.loadSource(text.toUpperCase());
     M.setStatus("Searching…");
+    var seq = ++M.searchSeq, loaded = M.loadSeq;
     M.get(MFG + "/search?$searchStr=" + encodeURIComponent(text) + "&$top=25")
       .then(function (resp) {
+        if (seq !== M.searchSeq || loaded !== M.loadSeq) return;     // a newer search or a pick happened meanwhile
         var items = M.members(resp);
         if (!items.length) { M.setStatus("No Manufacturing Items match “" + text + "”. New items can take a minute to appear in search."); return; }
         var exact = items.filter(function (it) { return it.title === text || it.name === text; });

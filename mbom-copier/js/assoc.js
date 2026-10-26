@@ -89,7 +89,8 @@
           var o = l.organizationRef || {}, pid = idOf(o);
           var attrs = l["dsmfg:MfgResponsibilityEnterpriseAttributes"] || null;
           names[pid] = names[pid] || o.relativePath || ("/resources/v1/modeler/organizations/" + pid);
-          return { id: pid, link: l.id, makeOrBuy: l.makeOrBuy || "", attributes: attrs, name: null };
+          var mob = /^undefined$/i.test(l.makeOrBuy || "") ? "" : (l.makeOrBuy || "");
+          return { id: pid, link: l.id, makeOrBuy: mob, attributes: attrs, name: null };
         });
       });
     }).then(failures("plants")).then(function () {
@@ -284,9 +285,14 @@
       if (st === "loading") parts.push(k.label + ": reading…");
       else if (st && st.indexOf("error") === 0) parts.push(k.label + ": could not be read (" + st.slice(7) + ")");
       else if (st === "ok") {
-        var n = 0;
-        Object.keys(src.assoc.items).forEach(function (id) { n += (src.assoc.items[id][k.key] || []).length; });
-        parts.push(k.label + ": " + n);
+        var objs = {}, on = 0;
+        Object.keys(src.assoc.items).forEach(function (id) {
+          var list = src.assoc.items[id][k.key] || [];
+          if (list.length) on++;
+          list.forEach(function (e) { objs[typeof e === "string" ? e : (e.id || e.mei)] = true; });
+        });
+        var n = Object.keys(objs).length;
+        parts.push(k.label + ": " + n + (n ? " on " + on + " item" + (on === 1 ? "" : "s") : ""));
       }
     });
     ui.assocNote.textContent = parts.join(" · ") + (M.assocNote && M.assocNote.length ? " · " + M.assocNote.join("; ") : "");

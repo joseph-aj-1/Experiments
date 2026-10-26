@@ -353,6 +353,10 @@ class Associations:
         failed = [p for p in self.st["plants"].values() if p.get("status") == "unknown"]
         if failed:
             w.append("Plant links skipped: the plant search did not work in the target — " + failed[0].get("error", ""))
+        new_cas = [x.get("target_name") or x["target_id"] for x in self.st["cas"].values() if x.get("target_id")]
+        if new_cas:
+            w.append("New change action(s) " + ", ".join(new_cas) + " start in Prepare: move them to In Work in the target "
+                     "for the items to list them under Release Authorization")
         if c["changeActions"]["waiting"]:
             w.append("Change Actions are planned, but will only be created once the Change Action API spec is in")
         return w

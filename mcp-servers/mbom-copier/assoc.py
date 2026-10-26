@@ -197,7 +197,7 @@ class Associations:
         if not PLANT_API["confirmed"]:
             raise Pending("plant lookup is switched off")
         worked, errors, seen = False, [], []
-        for via, search in (("organizations search", self._plants_org_search), ("3DSearch", self._plants_3dsearch)):
+        for via, search in (("organizations list", self._plants_org_list), ("3DSearch", self._plants_3dsearch)):
             try:
                 hits = await search(name)
             except Exception as e:
@@ -216,24 +216,31 @@ class Associations:
             return []
         raise Pending("no plant search worked in the target (" + "; ".join(errors) + ")")
 
-    async def _plants_org_search(self, name: str) -> list[dict]:
-        api = self.api("org")
-        r = await api.call("GET", "/organizations/search", params={"$searchStr": name, "$top": 50})
-        rows = api.members(r) or (r.get("data") if isinstance(r, dict) else None) or \
-            ((r.get("result") or {}).get("data") if isinstance(r, dict) else None) or []
+    async def _plants_org_list(self, name: str) -> list[dict]:
+        """GET .../organizations lists the organizations the user can see (Lighthouse answers it;
+        its /search sub-route fails with HTTP 500). Read once per run."""
+        if getattr(self, "_orgs", None) is None:
+            api = self.api("org")
+            r = await api.call("GET", "/organizations", params={"$top": 1000})
+            rows = (r.get("data") if isinstance(r, dict) else None) or api.members(r) or []
+            self._orgs = [{"id": m.get("id") or m.get("identifier") or m.get("physicalid"),
+                           "name": (m.get("dataelements") or m).get("title") or m.get("name"),
+                           "alt": m.get("name"), "type": m.get("type") or ""} for m in rows]
         out = []
-        for m in rows:
-            de = m.get("dataelements") or m
-            out.append({"id": m.get("id") or m.get("identifier") or m.get("physicalid"),
-                        "name": de.get("title") or de.get("name") or de.get("displayName"),
-                        "type": m.get("type") or de.get("type") or ""})
+        for o in self._orgs:          # a plant may carry its name in title or in name
+            for label in {o["name"], o["alt"]}:
+                if label and norm(label) == norm(name):
+                    out.append({"id": o["id"], "name": label, "type": o["type"]})
         return out
 
     async def _plants_3dsearch(self, name: str) -> list[dict]:
-        """3DSearch, as in the dashboard search box: 'Org:<name>' (plants are organizations),
-        then a type-filtered query. Results typed Plant win over other organizations."""
+        """3DSearch, the service behind the dashboard search box. On Lighthouse
+        '[ds6w:type]:Plant AND RSK' and '[ds6w:label]:RSK' find the plant ('Org:RSK' does not)."""
         api, out, last = self.api("search"), [], None
-        for query in (f"Org:{name}", f'[ds6w:type]:"Plant" AND "{name}"'):
+        quoted = name if re.fullmatch(r"[\w.-]+", name) else '"' + name.replace('"', "") + '"'
+        queries = [(f"[ds6w:type]:Plant AND [ds6w:label]:{quoted}", True), (f"[ds6w:type]:Plant AND {quoted}", True),
+                   (f"[ds6w:label]:{quoted}", False)]
+        for query, typed in queries:
             body = {"label": "mbom-copier", "locale": "en", "with_indexing_date": False, "with_synthesis": False, "with_nls": False,
                     "select_predicate": ["ds6w:label", "ds6w:type", "physicalid", "ds6w:identifier"], "select_file": [],
                     "query": query, "order_field": "relevance", "order_dir": "desc",
@@ -245,14 +252,13 @@ class Associations:
                 continue
             for res in (r.get("results") or []):
                 a = {x.get("name"): x.get("value") for x in res.get("attributes") or []}
-                out.append({"id": a.get("physicalid") or a.get("resourceid"), "name": a.get("ds6w:label"),
-                            "type": a.get("ds6w:type") or ""})
+                t = a.get("ds6w:type") or ("Plant" if typed else "")      # the query already asked for plants
+                out.append({"id": a.get("physicalid") or a.get("resourceid"), "name": a.get("ds6w:label"), "type": t})
             if any(norm(h["name"]) == norm(name) and "plant" in norm(h["type"]) for h in out):
                 break
         if not out and last:
             raise last
-        plants = [h for h in out if "plant" in norm(h["type"])]
-        return plants or [h for h in out if "organi" in norm(h["type"])]
+        return [h for h in out if "plant" in norm(h["type"])]
 
     async def plan_meis(self):
         meis = self.inp.get("meis") or {}

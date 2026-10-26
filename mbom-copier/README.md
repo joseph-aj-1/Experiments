@@ -8,7 +8,7 @@ Drop a Manufacturing Item in this widget and you see its whole MBOM. You can the
 
 - **Also copy** associated objects of the copied items. Tick any of:
   - **Change Actions:** a new CA per source CA (title, description, severity), with the copied items as proposed changes (current version, Modify). State, approvals and realized changes start fresh.
-  - **Plants:** Manufacturing Responsibility links, with the same Make/Buy. Each plant is found by exact name in the target, first through the organizations search and then through 3DSearch (`Org:<name>`). Only a single exact match of type Plant is used. A plant that is missing, or that can't be found because no search works, is reported and its links are skipped; nothing is guessed.
+  - **Plants:** Manufacturing Responsibility links, with the same Make/Buy. Each plant is found by exact name in the target, first through the organizations list and then through 3DSearch (`[ds6w:type]:Plant AND [ds6w:label]:<name>`). Only a single exact match of type Plant is used. A plant that is missing, or that can't be found because no search works, is reported and its links are skipped; nothing is guessed.
   - **MEIs:** reused if the target has the same manufacturer and part number, otherwise created, then qualified on the copied part with the same preferred and approved values.
   - **Specifications:** each document is created once in the target with its files and attached to every copied item that had it. The widget downloads the files from the source and hands them to the service.
 

@@ -166,11 +166,13 @@ class FullTenant(Tenant):
 
     def h_org(self, req, path, body):
         self.calls.append((req.method, f"org {path}"))
-        if not self.plant_search["org"] or path != "/organizations/search":
+        if path == "/organizations/search":            # as on Lighthouse
+            return httpx.Response(500, json={"success": False, "statusCode": 500, "internalError": "Failed to commit"})
+        if not self.plant_search["org"] or path != "/organizations":
             return httpx.Response(404, json={"message": f"no route {path}"})
-        q = req.url.params.get("$searchStr", "").lower()
-        return self.ok([{"id": p["id"], "type": "Plant", "title": p["title"], "name": p["name"]}
-                        for p in self.plants.values() if q in p["title"].lower()])
+        orgs = [{"id": "COMPANY1", "type": "Company", "name": "Company Name", "title": "US Lighthouse"}] + \
+               [{"id": p["id"], "type": "Plant", "title": p["title"], "name": p["name"]} for p in self.plants.values()]
+        return httpx.Response(200, json={"success": True, "statusCode": 200, "items": len(orgs), "data": orgs})
 
     def h_search(self, req, path, body):
         self.calls.append((req.method, f"3dsearch {path}"))
@@ -178,13 +180,11 @@ class FullTenant(Tenant):
             return httpx.Response(404, json={"message": "no route"})
         q = body["query"].lower()
         self.queries = getattr(self, "queries", []) + [body["query"]]
-        if q.startswith("org:"):
-            hits = [p for p in self.plants.values() if p["title"].lower() == q[4:].strip()]
-        else:
-            hits = [p for p in self.plants.values() if p["title"].lower() in q] if '"plant"' in q else []
-        return httpx.Response(200, json={"results": [{"attributes": [{"name": "ds6w:label", "value": p["title"]},
-                                                                     {"name": "ds6w:type", "value": "Plant"},
-                                                                     {"name": "physicalid", "value": p["id"]}]} for p in hits]})
+        # behaves like Lighthouse: Org: and quoted "Plant" AND "X" find nothing; type/label predicates work
+        m = re.fullmatch(r'\[ds6w:type\]:plant and (?:\[ds6w:label\]:)?"?([^"]+)"?', q) or re.fullmatch(r'\[ds6w:label\]:"?([^"]+)"?', q)
+        hits = [p for p in self.plants.values() if m and p["title"].lower() == m.group(1).strip()]
+        return httpx.Response(200, json={"infos": {"nresults": len(hits)}, "results": [{"attributes": [
+            {"name": "resourceid", "value": p["id"]}, {"name": "ds6w:label", "value": p["title"]}]} for p in hits]})
 
     def h_ca(self, req, path, body):
         self.calls.append((req.method, f"ca {path}"))

@@ -84,14 +84,17 @@ def load_profile(path: Path):
     return creds
 
 
-def make_client(creds) -> httpx.AsyncClient:
+DSMFG_SERVERS = [("3DSpace", "{3DSpace}/resources/v1/modeler/dsmfg"), ("APIGateway", "{APIGateway}/api/dsmfg/v1")]
+
+
+def make_client(creds, servers=None, name: str = "dsmfg") -> httpx.AsyncClient:
+    """Signed-in client for one web service; servers = [(variable, url template), ...]."""
     from app.client_factory import build_client, resolve_tenant  # type: ignore
     from app.config import ServiceEntry  # type: ignore
 
-    spec = {"servers": [
-        {"url": "{3DSpace}/resources/v1/modeler/dsmfg", "variables": {"3DSpace": {"default": "https://3dspace"}}},
-        {"url": "{APIGateway}/api/dsmfg/v1", "variables": {"APIGateway": {"default": "https://my3DEXPERIENCE-APIGateway"}}}]}
-    client = build_client(spec, ServiceEntry(name="dsmfg", file="", server_preference=creds.server_preference), creds)
+    spec = {"servers": [{"url": url, "variables": {var: {"default": f"https://my3DEXPERIENCE-{var}"}}}
+                        for var, url in (servers or DSMFG_SERVERS)]}
+    client = build_client(spec, ServiceEntry(name=name, file="", server_preference=creds.server_preference), creds)
     client.tenant_id = resolve_tenant(creds, str(client.base_url)) or "?"
     return client
 
@@ -297,6 +300,7 @@ def shown(path: Path) -> str:
 class Copier:
     def __init__(self, source: str, tgt: Api, record: dict, record_path: Path, quiet: bool = False):
         self.source, self.tgt, self.rec, self.path, self.quiet = source, tgt, record, record_path, quiet
+        self.assoc = None          # assoc.Associations, when associated objects are copied too
 
     def save(self):
         self.path.write_text(json.dumps(self.rec, indent=1))
@@ -370,6 +374,8 @@ class Copier:
             for k in kids:
                 r = self.rec["instances"].setdefault(k["inst"], {"parent": pid, "child": k["child"]})
                 r["skip"] = parent["action"] != "create" and not r.get("target_id")
+        if self.assoc:
+            await self.assoc.plan()
         self.rec["checked"] = now()
         self.save()
 
@@ -391,6 +397,8 @@ class Copier:
         if self.source == self.rec["target"]:
             w.append("source and target are the same tenant" + ("" if self.rec["options"]["title_suffix"] else
                      " and there is no --title-suffix: the copies will have the same titles as the originals"))
+        if self.assoc:
+            w += self.assoc.warnings()
         return w
 
     def counts(self) -> dict:
@@ -405,6 +413,11 @@ class Copier:
             if not r.get("skip"):
                 c["inst_created" if r.get("target_id") else "inst_create"] += 1
                 c["failed"] += bool(r.get("error"))
+        if self.assoc:
+            a = self.assoc.counts()
+            c["assoc"] = a
+            c["assoc_todo"] = sum(a[k]["pending"] + a[k]["error"] for k in ("specs", "plants", "meis", "changeActions"))
+            c["failed"] += self.assoc.failed()
         return c
 
     def plan_rows(self) -> list[dict]:
@@ -419,6 +432,8 @@ class Copier:
                  "action": "done" if x.get("created") else x["action"], "target_title": x.get("title"),
                  "target_name": x.get("target_name") or "", "target_id": x.get("target_id") or "",
                  "note": x.get("note") or "", "error": x.get("error") or "", "repeat": iid in printed}
+            if self.assoc and iid not in printed:
+                r["assoc"] = self.assoc.badges(iid)
             if inst:
                 ir = self.rec["instances"].get(inst["inst"], {})
                 r["quantity"] = (inst["attrs"].get("quantity") or {})
@@ -555,8 +570,12 @@ class Copier:
         self.note(f"copy started: {self.source} -> {self.tgt.tenant}")
         await self.create_items()
         await self.create_instances()
+        if self.assoc:
+            await self.assoc.execute()
         c = self.counts()
         problems = await self.verify()
+        if self.assoc:
+            problems += await self.assoc.verify()
         root = self.rec["items"][self.rec["tree"]["root"]]
         if c["failed"]:
             self.rec["status"] = "incomplete"

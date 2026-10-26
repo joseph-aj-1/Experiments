@@ -10,8 +10,12 @@
   M.dryRun = function () {
     if (!M.src || M.busy) return;
     var opt = options();
+    var loading = M.ASSOC_KINDS.filter(function (k) { return M.assocOptions()[k.key] && M.src.assocState && M.src.assocState[k.key] === "loading"; });
+    if (loading.length) return M.setStatus("Still reading " + loading.map(function (k) { return k.label; }).join(", ") + " from the source — try again in a moment.", true);
     var body = { source_tenant: M.src.tenant, root: M.src.rootId, items: M.src.items, children: M.src.children,
                  reuse_existing: opt.reuse_existing, title_suffix: opt.title_suffix };
+    var assoc = M.assocPayload();
+    if (assoc) body.assoc = assoc;
     M.busy = true; M.refreshButtons();
     M.setStatus("Checking " + ((M.target && M.target.tenant) || "the target") + "…");
     return M.svc("POST", "/plan", body).then(function (v) {
@@ -31,6 +35,23 @@
     if (c.created || c.inst_created) parts.push((v.status === "done" ? "Created in " + v.target + ": " : "already created: ") +
                                                 c.created + " items, " + c.inst_created + " instances");
     if (c.reuse) parts.push("reused from the target: " + c.reuse + (c.inside ? " (+" + c.inside + " inside them, not copied)" : ""));
+    if (c.assoc) {
+      var a = c.assoc, ap = [];
+      M.ASSOC_KINDS.forEach(function (k) {
+        var x = a[k.key];
+        if (!x || !(x.pending + x.done + x.error + x.skip + (x.waiting || 0))) return;
+        var bits = [];
+        if (x.done) bits.push(x.done + " done");
+        if (x.pending + x.error) bits.push((x.pending + x.error) + " to link");
+        if (x.waiting) bits.push(x.waiting + " waiting for the API spec");
+        if (x.skip) bits.push(x.skip + " skipped");
+        ap.push(k.label + ": " + bits.join(", "));
+      });
+      var nw = a.new || {};
+      var made = [nw.docs ? nw.docs + " new document" + (nw.docs === 1 ? "" : "s") : "", nw.meis ? nw.meis + " new MEI" + (nw.meis === 1 ? "" : "s") : "",
+                  nw.cas ? nw.cas + " new change action" + (nw.cas === 1 ? "" : "s") : ""].filter(Boolean);
+      if (ap.length) parts.push(ap.join(" · ") + (made.length ? " — " + made.join(", ") : ""));
+    }
     ui.summary.innerHTML = "";
     ui.summary.appendChild(M.el("div", "sumline", parts.join(" · ") || "Nothing to create: everything already exists in " + v.target + "."));
     (v.warnings || []).forEach(function (w) { ui.summary.appendChild(M.el("div", "warn", "⚠ " + w)); });
@@ -42,7 +63,7 @@
     else if (v.status === "incomplete") M.setStatus(c.failed + " step" + (c.failed === 1 ? "" : "s") + " failed — see the red rows. Fix the cause and press Copy again; finished steps are skipped.", true);
     else if (v.status === "copied with differences") M.setStatus("Copied, but the target differs from the source: " + ((v.verification || {}).problems || []).join("; "), true);
     else if (v.status === "failed") M.setStatus("The copy stopped: " + (v.error || "unknown error") + ". Press Copy again to continue.", true);
-    else M.setStatus((c.create || c.inst_create) ? "Dry run done — nothing was written. Check the plan, then press Copy." : "Nothing to copy.");
+    else M.setStatus((c.create || c.inst_create || c.assoc_todo) ? "Dry run done — nothing was written. Check the plan, then press Copy." : "Nothing to copy.");
     M.refreshButtons();
   };
   function rootDone(v) {
@@ -57,14 +78,18 @@
     if (!v || M.busy) return;
     if (!armed) {
       armed = setTimeout(function () { armed = null; M.refreshButtons(); }, 8000);
-      ui.copy.textContent = "Click again to create " + v.counts.create + " items and " + v.counts.inst_create + " instances in " + v.target;
+      ui.copy.textContent = "Click again to create " + v.counts.create + " items, " + v.counts.inst_create + " instances" +
+        (v.counts.assoc_todo ? " and " + v.counts.assoc_todo + " associations" : "") + " in " + v.target;
       ui.copy.className = "btn danger";
       return;
     }
     clearTimeout(armed); armed = null;
     M.busy = true; M.refreshButtons();
     M.setStatus("Starting the copy…");
-    M.svc("POST", "/execute", { run: v.run }).then(function (r) { M.show(r); poll(r.run); },
+    var files = v.files_needed || [];
+    (files.length ? M.sendFiles(v.run, files) : Promise.resolve()).then(function () {
+      return M.svc("POST", "/execute", { run: v.run });
+    }).then(function (r) { M.show(r); poll(r.run); },
       function (e) { M.busy = false; M.refreshButtons(); M.setStatus(e.message, true); });
   };
   function poll(run) {

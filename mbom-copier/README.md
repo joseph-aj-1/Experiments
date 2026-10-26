@@ -6,6 +6,14 @@ Drop a Manufacturing Item in this widget and you see its whole MBOM. You can the
 - **Dry run.** The widget sends the structure to the **MBOM Copier service on your PC**. The service checks the target and shows, per row, what it would *Create* or *Reuse*. Nothing is written.
 - **Copy.** You click twice to confirm. The service then creates the items and instances in the target, shows its progress, and finishes by reading the target back and comparing it with the source. If a copy stops partway, press Copy again and it finishes; nothing is created twice.
 
+- **Also copy** associated objects of the copied items. Tick any of:
+  - **Change Actions:** a new CA per source CA, with the copied items as proposed changes. *Waiting for the Change Action API spec.*
+  - **Plants:** Manufacturing Responsibility links, with plants matched by name in the target and the same Make/Buy. A plant missing in the target is reported and skipped. *Plant lookup is waiting for the organizations API spec.*
+  - **MEIs:** reused if the target has the same manufacturer and part number, otherwise created, then qualified on the copied part with the same preferred and approved values.
+  - **Specifications:** each document is created once in the target with its files and attached to every copied item that had it. The widget downloads the files from the source and hands them to the service.
+
+  The preview shows them in an **Associated** column. The dry run marks each one new, reuse, link, missing or waiting. Items reused from the target keep their own associations.
+
 The widget only reads from the source tenant. All writing to the target is done by the service, with the same code as the `mbom_copy.py` script.
 
 ## Add it to a dashboard

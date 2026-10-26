@@ -63,6 +63,14 @@
     }
     ui.reuse.addEventListener("change", stale);
     ui.suffix.addEventListener("input", stale);
+    M.ASSOC_KINDS.forEach(function (k) {
+      ui.assoc[k.key].addEventListener("change", function () {
+        M.saveAssocOptions();
+        if (M.plan) stale(); else if (M.src) M.renderTable(M.previewRows(M.src));
+        if (M.src) M.loadAssoc(M.loadSeq);
+        M.renderAssocNote();
+      });
+    });
 
     var w = M.w;
     if (w.addEvent) {

@@ -114,7 +114,9 @@
       if (M.w.setTitle) M.w.setTitle("MBOM Copier: " + (root.title || root.name));
       var nItems = Object.keys(src.items).length;
       var nInst = Object.keys(src.children).reduce(function (s, k) { return s + src.children[k].length; }, 0);
+      M.assocNote = [];
       M.renderTable(M.previewRows(src));
+      M.loadAssoc(seq);
       M.setStatus(root.title + ": " + nItems + " item" + (nItems === 1 ? "" : "s") + ", " + nInst + " instance" + (nInst === 1 ? "" : "s") +
                   ". Next: Dry run.");
       M.refreshButtons();

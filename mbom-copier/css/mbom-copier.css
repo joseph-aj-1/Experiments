@@ -75,3 +75,23 @@ html, body { height: 100%; margin: 0; overflow: hidden; }
 .mbc .f small { grid-column: 2; color: var(--muted); font-size: 11px; }
 .mbc .row { display: flex; gap: 8px; margin: 10px 0 4px; }
 @media (max-width: 520px) { .mbc .f { grid-template-columns: 1fr; } .mbc .f small { grid-column: 1; } }
+
+/* associated objects */
+.mbc .opts.assoc { border-top: 0; padding-top: 0; }
+.mbc .opts .alab { color: var(--muted); }
+.mbc .assocnote { font-size: 11px; color: var(--muted); margin: -2px 0 6px; min-height: 1em; }
+.mbc .assocnote.error { color: var(--err); }
+.mbc table.bom td.assoc { min-width: 14em; }
+.mbc .badge { display: inline-block; margin: 0 4px 3px 0; padding: 1px 6px; border-radius: 9px; font-size: 11px; line-height: 16px;
+  background: #eef2f6; border: 1px solid #d5dde6; white-space: nowrap; max-width: 28em; overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
+.mbc .badge b { font-weight: 600; color: var(--muted); margin-right: 2px; }
+.mbc .badge i { font-style: normal; color: var(--muted); }
+.mbc .badge.k-specs { background: #f6f1e8; border-color: #e4d6bf; }
+.mbc .badge.k-plants { background: #edf5ee; border-color: #cfe3d2; }
+.mbc .badge.k-meis { background: #eaf2f8; border-color: #c9dbea; }
+.mbc .badge.k-changeActions { background: #f3eef7; border-color: #ddd0e8; }
+.mbc .badge.s-done i { color: var(--ok); font-weight: 700; }
+.mbc .badge.s-error { border-color: var(--err); }
+.mbc .badge.s-error i { color: var(--err); }
+.mbc .badge.s-skip, .mbc .badge.s-missing { opacity: .6; text-decoration: line-through; text-decoration-color: #9aa5b1; }
+.mbc .badge.s-pending-spec i, .mbc .badge.s-missing i { color: var(--warn); }

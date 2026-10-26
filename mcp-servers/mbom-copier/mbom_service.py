@@ -26,9 +26,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
+import assoc as ax
 import mbom_copy as mc
 
-VERSION = "1.0"
+VERSION = "1.1"
 ROOT = mc.ROOT
 CONFIG = ROOT / "service.json"
 TARGET_ENV = ROOT / "target.env"
@@ -126,11 +127,14 @@ def target_summary() -> dict:
 class Engine:
     """One asyncio loop for the whole service (the 3DPassport login code keeps a single lock)."""
 
-    def __init__(self, target_factory=None):
+    def __init__(self, target_factory=None, space_url: str | None = None, fcs_client=None):
         self.loop = asyncio.new_event_loop()
         threading.Thread(target=self.loop.run_forever, daemon=True, name="mbom-loop").start()
-        self._factory = target_factory           # tests inject a mock client
+        self._factory = target_factory           # tests inject mock clients: factory(service="dsmfg")
+        self._space = space_url                  # tests: the target's 3DSpace URL
+        self._fcs = fcs_client                   # tests: the file server
         self._tgt: mc.Api | None = None
+        self._svc: dict[str, mc.Api] = {}
         self.jobs: dict[str, dict] = {}           # run id -> {"thread": Future, "copier": Copier}
         self.lock = threading.Lock()
 
@@ -144,7 +148,12 @@ class Engine:
                     await self._tgt.c.aclose()
                 except Exception:
                     pass
-            self._tgt = None
+            for a in self._svc.values():
+                try:
+                    await a.c.aclose()
+                except Exception:
+                    pass
+            self._tgt, self._svc = None, {}
             try:                                    # forget the old login
                 from app import client_factory as cf  # type: ignore
                 cf._LOGGED_IN_FOR.clear()
@@ -164,6 +173,34 @@ class Engine:
             self._tgt = mc.Api(c, c.tenant_id)
         return self._tgt
 
+    def service(self, name: str) -> mc.Api:
+        """Target client for another web service (MEI, qualifications, documents, ...)."""
+        if name == "dsmfg":
+            return self._tgt
+        if name not in self._svc:
+            if self._factory:
+                c = self._factory(name)
+            else:
+                c = mc.make_client(mc.load_profile(TARGET_ENV), ax.SERVICES[name], name)
+            self._svc[name] = mc.Api(c, c.tenant_id, limit=3)
+        return self._svc[name]
+
+    def space_url(self) -> str:
+        if self._space:
+            return self._space
+        env = read_env()
+        return env.get("TDX_BASE_URL") or ""
+
+    def attach(self, cp: mc.Copier) -> mc.Copier:
+        """Give a copier its associations module when the run has associated objects."""
+        if cp.rec.get("assoc_in") and cp.assoc is None:
+            cp.assoc = ax.Associations(cp, self.service, self.space_url(), self.files_dir(cp.path.stem), self._fcs)
+        return cp
+
+    @staticmethod
+    def files_dir(run: str) -> Path:
+        return mc.RUNS / f"{run}.files"
+
     # ------------------------------------------------------------- operations
     async def test(self) -> dict:
         tgt = await self.target()
@@ -182,7 +219,10 @@ class Engine:
                 raise mc.CopyError("send source_tenant, root, items and children")
             tree = mc.build_tree(body["root"], body["items"], body.get("children") or {}, src)
             cp = mc.Copier.new(src, tgt, tree, bool(body.get("reuse_existing")), body.get("title_suffix") or "", quiet=True)
+            if isinstance(body.get("assoc"), dict) and any((body["assoc"].get("options") or {}).values()):
+                cp.rec["assoc_in"] = body["assoc"]
         cp.tgt = tgt
+        self.attach(cp)
         await cp.check_target()
         cp.rec["status"] = cp.rec.get("status") if cp.rec.get("status") not in (None, "running") else "planned"
         cp.save()
@@ -194,7 +234,7 @@ class Engine:
             return job["copier"]
         path = self.run_path(run)
         rec = json.loads(path.read_text())
-        return mc.Copier(rec["source"], self._tgt, rec, path, quiet=True)
+        return self.attach(mc.Copier(rec["source"], self._tgt, rec, path, quiet=True))
 
     @staticmethod
     def run_path(run: str) -> Path:
@@ -224,7 +264,10 @@ class Engine:
                     raise mc.CopyError(f"this run copies to {cp.rec['target']}, but Settings point at {cp.tgt.tenant}")
                 await cp.check_target()          # the target may have changed since the plan
                 c = cp.counts()
-                if not c["create"] and not c["inst_create"]:
+                missing = cp.assoc.files_needed() if cp.assoc else []
+                if missing:
+                    raise mc.CopyError(f"{len(missing)} specification file(s) were not received from the widget yet")
+                if not c["create"] and not c["inst_create"] and not c.get("assoc_todo"):
                     cp.say("Nothing to create.")
                     await cp.verify()
                     cp.rec["status"] = "done"
@@ -252,7 +295,20 @@ class Engine:
                 "status": "running" if running else cp.rec.get("status"), "error": cp.rec.get("error"),
                 "options": cp.rec["options"], "counts": cp.counts(), "warnings": cp.warnings(),
                 "rows": cp.plan_rows(), "events": cp.rec.get("events", [])[-200:],
-                "verification": cp.rec.get("verification")}
+                "verification": cp.rec.get("verification"),
+                "assoc_options": (cp.rec.get("assoc_in") or {}).get("options") or {},
+                "files_needed": cp.assoc.files_needed() if cp.assoc else []}
+
+    def receive_file(self, run: str, body: dict) -> dict:
+        cp = self.copier(run)
+        if not cp.assoc:
+            raise mc.CopyError("this run has no specifications to copy")
+        wanted = {f["file"]: f for f in cp.assoc.files_needed()}
+        fid = str(body.get("file") or "")
+        if fid not in wanted:
+            raise mc.CopyError(f"file {fid} is not needed by this run")
+        n = ax.store_file(self.files_dir(run), fid, body.get("data") or "")
+        return {"ok": True, "file": fid, "bytes": n, "files_needed": cp.assoc.files_needed()}
 
     def runs(self) -> list[dict]:
         out = []
@@ -346,6 +402,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200, e.start(self.body().get("run", "")))
             if method == "GET" and path == "/runs":
                 return self.reply(200, e.runs())
+            m = re.fullmatch(r"/runs/([\w.-]+)/files", path)
+            if method == "POST" and m:
+                return self.reply(200, e.receive_file(m.group(1), self.body()))
             m = re.fullmatch(r"/runs/([\w.-]+)", path)
             if method == "GET" and m:
                 cp = e.copier(m.group(1))

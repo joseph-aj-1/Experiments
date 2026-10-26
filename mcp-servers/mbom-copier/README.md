@@ -58,6 +58,8 @@ The [MBOM Copier widget](../../mbom-copier/) does the same copy from a 3DDashboa
 - The widget's Settings screen writes `target.env`.
 - The service writes the same `runs\*.json` records as the script, so a run started in one can be finished in the other.
 
+Associated objects (Change Actions, Plants, MEIs, Specifications) are copied through the widget only; `assoc.py` holds that part. The script copies the structure itself.
+
 ## What it does
 
 1. **Reads** the whole structure below the root on the source, with the Details masks. Shared sub-assemblies are read once.
@@ -91,6 +93,7 @@ New items get the target's own autonames and start In Work.
 ```
 python tests/test_copy.py
 python tests/test_service.py
+python tests/test_assoc.py
 ```
 
 This runs 23 checks against two in-memory tenants:

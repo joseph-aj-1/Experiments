@@ -136,7 +136,7 @@ with sync_playwright() as p:
     copy = pg.locator(".btn.danger")
     check(copy.get_attribute("aria-disabled") == "false" and "Copy to R1132100000770" in copy.inner_text(), "Copy enabled after a dry run")
     copy.click()
-    check("Click again to create 5 items and 7 instances in R1132100000770" in copy.inner_text() and tgt.writes == 0, "first click only arms Copy")
+    check("Click again to create 5 items, 7 instances in R1132100000770" in copy.inner_text() and tgt.writes == 0, "first click only arms Copy")
     copy.click()
     pg.wait_for_function("document.querySelector('.status').textContent.indexOf('Copied:') === 0", timeout=20000)
     check("matches the source" in pg.inner_text(".status"), "copy finished and verified")

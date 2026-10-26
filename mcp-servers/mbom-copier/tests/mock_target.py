@@ -14,7 +14,8 @@ from test_copy import Tenant
 
 FCS = "https://fcs.test/fcs/servlet/fcs/checkin"
 BASES = {"dsmfg": "/api/dsmfg/v1", "mei": "/api/dssrc-manufacturerEquivalentItems/v1",
-         "qual": "/api/dssrc-qualifications/v1", "docs": "/api/documents/v1", "ca": "/api/dslc:CA/v1"}
+         "qual": "/api/dssrc-qualifications/v1", "docs": "/api/documents/v1", "ca": "/api/dslc:CA/v1",
+         "org": "/enovia/resources/v1/modeler", "search": "/federated"}
 
 
 class FullTenant(Tenant):
@@ -29,6 +30,7 @@ class FullTenant(Tenant):
         self.receipts: dict[str, tuple] = {}
         self.fail_service: str | None = None       # make one web service refuse writes
         self.cas: dict[str, dict] = {}
+        self.plant_search = {"org": True, "search": True}     # which lookups the tenant answers
 
     def add_plant(self, name):
         pid = next(self.ids)
@@ -161,6 +163,28 @@ class FullTenant(Tenant):
                 self.docs[m.group(1)]["parents"].add(p["id"])
             return httpx.Response(200, json={"success": True, "data": [{"id": m.group(1)}]})
         return httpx.Response(404, json={"message": f"no route {req.method} {path}"})
+
+    def h_org(self, req, path, body):
+        self.calls.append((req.method, f"org {path}"))
+        if not self.plant_search["org"] or path != "/organizations/search":
+            return httpx.Response(404, json={"message": f"no route {path}"})
+        q = req.url.params.get("$searchStr", "").lower()
+        return self.ok([{"id": p["id"], "type": "Plant", "title": p["title"], "name": p["name"]}
+                        for p in self.plants.values() if q in p["title"].lower()])
+
+    def h_search(self, req, path, body):
+        self.calls.append((req.method, f"3dsearch {path}"))
+        if not self.plant_search["search"] or req.method != "POST" or path != "/search":
+            return httpx.Response(404, json={"message": "no route"})
+        q = body["query"].lower()
+        self.queries = getattr(self, "queries", []) + [body["query"]]
+        if q.startswith("org:"):
+            hits = [p for p in self.plants.values() if p["title"].lower() == q[4:].strip()]
+        else:
+            hits = [p for p in self.plants.values() if p["title"].lower() in q] if '"plant"' in q else []
+        return httpx.Response(200, json={"results": [{"attributes": [{"name": "ds6w:label", "value": p["title"]},
+                                                                     {"name": "ds6w:type", "value": "Plant"},
+                                                                     {"name": "physicalid", "value": p["id"]}]} for p in hits]})
 
     def h_ca(self, req, path, body):
         self.calls.append((req.method, f"ca {path}"))

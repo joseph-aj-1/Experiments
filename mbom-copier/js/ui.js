@@ -102,7 +102,7 @@
   };
 
   // association badges: kind, label, and after a dry run what happens / happened to it
-  var SHORT = {}, ACT = { create: "new", reuse: "reuse", link: "link", missing: "missing in target", "pending-spec": "waiting for API spec",
+  var SHORT = {}, ACT = { create: "new", reuse: "reuse", link: "link", missing: "missing in target", "pending-spec": "waiting for API spec", "lookup-failed": "plant search failed",
                           check: "", skip: "skipped" };
   function badges(list) {
     if (!SHORT.specs) M.ASSOC_KINDS.forEach(function (k) { SHORT[k.key] = k.short; });

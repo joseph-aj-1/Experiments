@@ -57,12 +57,7 @@ def main() -> int:
     tgt.add_plant("Houston")
     existing_mei = tgt.add_mei("TI-555", "Texas Instruments")
 
-    # plant lookup and change-action writes wait for Arun's specs; the test plugs in a lookup
-    ax.PLANT_API["confirmed"] = True
-
-    async def find_plant(self, name):
-        return [p for p in tgt.plants.values() if p["name"].lower() == name.lower()]
-    ax.Associations.find_plant = find_plant
+    tgt.add_plant("Pune North")          # a near-miss name that must never be linked
 
     # what the widget sends: the structure + the associations it read from the source
     assoc = {
@@ -118,6 +113,8 @@ def main() -> int:
     ac = v["counts"]["assoc"]
     check(ac["specs"]["pending"] == 3 and ac["new"]["docs"] == 2, "specs: 3 links, 2 new documents")
     check(ac["plants"]["pending"] == 3 and ac["plants"]["skip"] == 1, "plants: Pune x2 + Houston linked, Mumbai skipped (%s)" % ac["plants"])
+    pb = [x for x in v["rows"][0]["assoc"] if x["kind"] == "plants"]
+    check(pb and pb[0]["action"] == "link" and "organizations search" in pb[0]["note"], "plant found by name through the organizations search")
     check(ac["meis"]["pending"] == 2 and ac["new"]["meis"] == 1, "MEIs: one new, one reused from the target")
     check(any("Mumbai" in w for w in v["warnings"]), "missing plant named in the warnings")
     check(ac["changeActions"]["pending"] == 2 and ac["new"]["cas"] == 1, "change actions: one new CA, two items to add")
@@ -185,6 +182,20 @@ def main() -> int:
     after = (len(tgt.docs), len(tgt.meis), len(tgt.quals), sum(len(x) for x in tgt.resp.values()),
              len(tgt.cas), sum(len(c["proposedChanges"]) for c in tgt.cas.values()))
     check(before == after, "running the copy again duplicates nothing %s -> %s" % (before, after))
+
+    # ---------------------------------------------------------------- plant lookup fallbacks
+    def plant_badges(t):
+        code, v = call("POST", "/plan", {**source_payload(src, a), "assoc": {**assoc, "options": {"plants": True}}})
+        return v, [x for r in v["rows"] if not r["repeat"] for x in r.get("assoc") or [] if x["kind"] == "plants"]
+    tgt.plant_search = {"org": False, "search": True}
+    v2, pb = plant_badges(tgt)
+    check(any(x["action"] == "link" and "3DSearch" in x["note"] for x in pb), "organizations search unavailable: 3DSearch finds the plant")
+    check(tgt.queries and tgt.queries[0].startswith("Org:"), "3DSearch asked with Org:<name> first (%s)" % tgt.queries[:2])
+    tgt.plant_search = {"org": False, "search": False}
+    v3, pb = plant_badges(tgt)
+    check(all(x["action"] == "lookup-failed" and x["status"] == "skip" for x in pb) and
+          any("plant search did not work" in w for w in v3["warnings"]), "no search works: links skipped, nothing guessed")
+    tgt.plant_search = {"org": True, "search": True}
 
     httpd.shutdown()
     shutil.rmtree(TMP, ignore_errors=True)

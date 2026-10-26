@@ -94,4 +94,4 @@ html, body { height: 100%; margin: 0; overflow: hidden; }
 .mbc .badge.s-error { border-color: var(--err); }
 .mbc .badge.s-error i { color: var(--err); }
 .mbc .badge.s-skip, .mbc .badge.s-missing { opacity: .6; text-decoration: line-through; text-decoration-color: #9aa5b1; }
-.mbc .badge.s-pending-spec i, .mbc .badge.s-missing i { color: var(--warn); }
+.mbc .badge.s-pending-spec i, .mbc .badge.s-missing i, .mbc .badge.s-lookup-failed i { color: var(--warn); }

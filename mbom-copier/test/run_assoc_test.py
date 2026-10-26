@@ -76,12 +76,6 @@ ASSOC = {
 # ------------------------------------------------------------------ target + service
 tgt = FullTenant("R1132100000770")
 tgt.add_plant("Pune")
-ax.PLANT_API["confirmed"] = True
-
-
-async def find_plant(self, name):
-    return [p for p in tgt.plants.values() if p["name"].lower() == name.lower()]
-ax.Associations.find_plant = find_plant
 
 cfg = svc.load_config()
 httpd = svc.serve(svc.Engine(target_factory=tgt.client, space_url=tgt.space, fcs_client=tgt.fcs_client()), port=0, cfg=cfg)

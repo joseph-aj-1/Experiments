@@ -46,15 +46,17 @@ SERVICES = {
     # Change Action Web Services 1.13 (tdx-mcp-server/specs/ChangeAction.json)
     "ca": [("3DSpace", "{3DSpace}/resources/v1/modeler/dslc"),
            ("APIGateway", "{APIGateway}/api/dslc:CA/v1")],
-    # confirmed from the organizations spec once it is in (see PLANT_API)
+    # plant lookup (read-only): the organizations resource the responsibility links point to,
+    # then 3DSearch, the service behind the dashboard's search box
     "org": [("3DSpace", "{3DSpace}/resources/v1/modeler")],
+    "search": [("fedsearch", "{fedsearch}/federated")],
 }
 
 # Not yet confirmed against the official OpenAPI specs: writes stay off until they are.
 CA_API = {"confirmed": True,
           # how a copied item is added to the new CA: work on its current (In Work) version
           "target": "CurrentVersion", "what": "Modify", "batch": 150}
-PLANT_API = {"confirmed": False}
+PLANT_API = {"confirmed": True}
 
 
 class Pending(RuntimeError):
@@ -170,7 +172,7 @@ class Associations:
             try:
                 hits = await self.find_plant(name)
                 if len(hits) == 1:
-                    p.update(status="found", target_id=hits[0]["id"], error="")
+                    p.update(status="found", target_id=hits[0]["id"], via=hits[0].get("via"), error="")
                 elif hits:
                     p.update(status="ambiguous", error=f"{len(hits)} plants named '{name}' in the target")
                 else:
@@ -186,9 +188,68 @@ class Associations:
                     l["status"], l["note"] = "skip", p.get("error") or "plant not found in the target"
 
     async def find_plant(self, name: str) -> list[dict]:
+        """Plants in the target with exactly this name: [{id, name, via}].
+
+        Tries the organizations resource search, then 3DSearch. Only exact (case-insensitive)
+        name matches of type Plant count. A search that works but finds nothing means missing;
+        if no search works at all the plant is reported as 'lookup failed' and never guessed."""
         if not PLANT_API["confirmed"]:
-            raise Pending("plant lookup in the target waits for the organizations web-service spec")
-        raise Pending("plant lookup not implemented")   # filled in from the spec
+            raise Pending("plant lookup is switched off")
+        worked, errors = False, []
+        for via, search in (("organizations search", self._plants_org_search), ("3DSearch", self._plants_3dsearch)):
+            try:
+                hits = await search(name)
+            except Exception as e:
+                errors.append(f"{via}: {str(e)[:160]}")
+                continue
+            worked = True
+            exact = {}
+            for h in hits:
+                if norm(h.get("name")) == norm(name) and "plant" in norm(h.get("type") or "plant") and h.get("id"):
+                    exact[h["id"]] = {"id": h["id"], "name": h["name"], "via": via}
+            if exact:
+                return list(exact.values())
+        if worked:
+            return []
+        raise Pending("no plant search worked in the target (" + "; ".join(errors) + ")")
+
+    async def _plants_org_search(self, name: str) -> list[dict]:
+        api = self.api("org")
+        r = await api.call("GET", "/organizations/search", params={"$searchStr": name, "$top": 50})
+        rows = api.members(r) or (r.get("data") if isinstance(r, dict) else None) or \
+            ((r.get("result") or {}).get("data") if isinstance(r, dict) else None) or []
+        out = []
+        for m in rows:
+            de = m.get("dataelements") or m
+            out.append({"id": m.get("id") or m.get("identifier") or m.get("physicalid"),
+                        "name": de.get("title") or de.get("name") or de.get("displayName"),
+                        "type": m.get("type") or de.get("type") or ""})
+        return out
+
+    async def _plants_3dsearch(self, name: str) -> list[dict]:
+        """3DSearch, as in the dashboard search box: 'Org:<name>' (plants are organizations),
+        then a type-filtered query. Results typed Plant win over other organizations."""
+        api, out, last = self.api("search"), [], None
+        for query in (f"Org:{name}", f'[ds6w:type]:"Plant" AND "{name}"'):
+            body = {"label": "mbom-copier", "locale": "en", "with_indexing_date": False, "with_synthesis": False, "with_nls": False,
+                    "select_predicate": ["ds6w:label", "ds6w:type", "physicalid", "ds6w:identifier"], "select_file": [],
+                    "query": query, "order_field": "relevance", "order_dir": "desc",
+                    "nresults": 50, "start": "0", "source": ["3dspace"], "tenant": self.cp.rec["target"]}
+            try:
+                r = await api.call("POST", "/search", json=body)
+            except Exception as e:
+                last = e
+                continue
+            for res in (r.get("results") or []):
+                a = {x.get("name"): x.get("value") for x in res.get("attributes") or []}
+                out.append({"id": a.get("physicalid") or a.get("resourceid"), "name": a.get("ds6w:label"),
+                            "type": a.get("ds6w:type") or ""})
+            if any(norm(h["name"]) == norm(name) and "plant" in norm(h["type"]) for h in out):
+                break
+        if not out and last:
+            raise last
+        plants = [h for h in out if "plant" in norm(h["type"])]
+        return plants or [h for h in out if "organi" in norm(h["type"])]
 
     async def plan_meis(self):
         meis = self.inp.get("meis") or {}
@@ -277,8 +338,9 @@ class Associations:
         missing = sorted({p["name"] for p in self.st["plants"].values() if p.get("status") in ("missing", "ambiguous")})
         if missing:
             w.append("Plants not in the target (their links are skipped): " + ", ".join(missing))
-        if any(p.get("status") == "unknown" for p in self.st["plants"].values()):
-            w.append("Plant links: the target lookup is not available yet (waiting for the organizations API spec)")
+        failed = [p for p in self.st["plants"].values() if p.get("status") == "unknown"]
+        if failed:
+            w.append("Plant links skipped: the plant search did not work in the target — " + failed[0].get("error", ""))
         if c["changeActions"]["waiting"]:
             w.append("Change Actions are planned, but will only be created once the Change Action API spec is in")
         return w
@@ -294,7 +356,9 @@ class Associations:
             if kind == "plants":
                 p = self.st["plants"].get(norm(d.get("name") or rid), {})
                 label = f"{d.get('name') or rid}" + (f" ({d.get('makeOrBuy')})" if d.get("makeOrBuy") else "")
-                action = {"found": "link", "missing": "missing", "ambiguous": "missing", "unknown": "pending-spec"}.get(p.get("status"), "check")
+                action = {"found": "link", "missing": "missing", "ambiguous": "missing", "unknown": "lookup-failed"}.get(p.get("status"), "check")
+                if p.get("status") == "found" and not note:
+                    note = f"found in the target by name ({p.get('via')})"
             elif kind == "meis":
                 m, s = (inp.get("meis") or {}).get(rid, {}), self.st["meis"].get(rid, {})
                 label = " · ".join(x for x in (m.get("manufacturer"), m.get("mpn") or m.get("title")) if x)
